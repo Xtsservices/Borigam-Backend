@@ -76,37 +76,46 @@ const courseSchema = Joi.object({
 
 export const questionWithOptionsSchema = Joi.object({
     name: Joi.string().required().messages({
-      'string.empty': commonValidations.question.empty,
-      'any.required': commonValidations.question.required,
+        'string.empty': commonValidations.question.empty,
+        'any.required': commonValidations.question.required,
     }),
     type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required().messages({
-      'string.empty': commonValidations.type.empty,
-      'any.required': commonValidations.type.required,
-      'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
+        'string.empty': commonValidations.type.empty,
+        'any.required': commonValidations.type.required,
+        'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
     }),
-  
+
     course_id: Joi.number().required().messages({
-      'number.base': 'Course ID must be a valid number',
-      'any.required': commonValidations.course.required,
+        'number.base': 'Course ID must be a valid number',
+        'any.required': commonValidations.course.required,
     }),
-    options: Joi.array().items(
-      Joi.object({
-        option_text: Joi.string().required().messages({
-          'string.empty': commonValidations.optionText.empty,
-          'any.required': commonValidations.optionText.required,
+
+    options: Joi.when('type', {
+        is: Joi.string().valid('radio', 'multiple_choice'),  // Check if type is 'radio' or 'multiple_choice'
+        then: Joi.array().items(
+            Joi.object({
+                option_text: Joi.string().required().messages({
+                    'string.empty': commonValidations.optionText.empty,
+                    'any.required': commonValidations.optionText.required,
+                }),
+                is_correct: Joi.boolean().required().messages({
+                    'boolean.base': 'is_correct must be a boolean',
+                    'any.required': "is_correct is required",
+                }),
+            }).required()
+        ).min(2).max(10).required().messages({
+            'array.base': 'Options must be an array',
+            'array.min': 'At least two options are required',
+            'array.max': 'A maximum of ten options are allowed',
+            'any.required': 'Options are required',
         }),
-        is_correct: Joi.boolean().required().messages({
-            'boolean.base': 'is_correct must be a boolean',
-            'any.required': "is_correct are required",
-          }),
-      }).required()
-    ).min(2).max(10).required().messages({
-      'array.base': 'Options must be an array',
-      'array.min': 'At least two options are required',
-      'array.max': 'A maximum of ten options are allowed',
-      'any.required': 'Options are required',
+        otherwise: Joi.array().optional().messages({
+            'array.base': 'Options must be an array',
+        })
     })
-  });
+});
+
+
 
 
 

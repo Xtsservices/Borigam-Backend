@@ -77,64 +77,67 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
 
 export const getAllQuestions = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Get All Questions");
-  
-    const client: PoolClient = await baseRepository.getClient();  // Get a database client
-  
-    try {
-      await client.query("BEGIN");
-  
-      // Query to get all questions along with options and course info
-      const query = `
-        SELECT q.id, q.name, q.type, q.status, q.course_id, c.name AS course_name, o.id AS option_id, o.option_text, o.is_correct
-        FROM question q
-        LEFT JOIN option o ON q.id = o.question_id
-        LEFT JOIN course c ON q.course_id = c.id;
-      `;
-  
-      const result = await client.query(query);
-      const questions = result.rows;  // Assuming `result.rows` contains the data
-  
-      await client.query("COMMIT");
-  
-      if (questions.length === 0) {
-        return ResponseMessages.Response(res, responseMessage.no_data, {});
-      }
-  
-      // Group the questions by their id
-      const groupedQuestions = questions.reduce((acc: any[], item) => {
-        let question = acc.find(q => q.id === item.id);
-        
-        if (!question) {
-          question = {
-            id: item.id,
-            name: item.name,
-            type: item.type,
-            status:getStatus(item.status),
-            course_id: item.course_id,
-            course_name: item.course_name,
-            options: []
-          };
-          acc.push(question);
-        }
-        
-        // Add the option to the question's options array
-        question.options.push({
-          option_id: item.option_id,
-          option_text: item.option_text,
-          is_correct: item.is_correct
-        });
 
-        return acc;
-      }, []);
-  
-      // Send the response with the grouped questions
-      return ResponseMessages.Response(res, responseMessage.success, groupedQuestions);
+    const client: PoolClient = await baseRepository.getClient();  // Get a database client
+
+    try {
+        await client.query("BEGIN");
+
+        // Query to get all questions along with options and course info
+        const query = `
+            SELECT q.id, q.name, q.type, q.status, q.course_id, c.name AS course_name, o.id AS option_id, o.option_text, o.is_correct
+            FROM question q
+            LEFT JOIN option o ON q.id = o.question_id
+            LEFT JOIN course c ON q.course_id = c.id;
+        `;
+
+        const result = await client.query(query);
+        const questions = result.rows;  // Assuming `result.rows` contains the data
+
+        await client.query("COMMIT");
+
+        if (questions.length === 0) {
+            return ResponseMessages.Response(res, responseMessage.no_data, {});
+        }
+
+        // Group the questions by their id
+        const groupedQuestions = questions.reduce((acc: any[], item) => {
+            let question = acc.find(q => q.id === item.id);
+            
+            if (!question) {
+                question = {
+                    id: item.id,
+                    name: item.name,
+                    type: item.type,
+                    status: getStatus(item.status),
+                    course_id: item.course_id,
+                    course_name: item.course_name,
+                    options: []
+                };
+                acc.push(question);
+            }
+
+            // Add the option to the question's options array only if type is not 'blank' or 'text'
+            if (item.type !== 'blank' && item.type !== 'text') {
+                question.options.push({
+                    option_id: item.option_id,
+                    option_text: item.option_text,
+                    is_correct: item.is_correct
+                });
+            }
+
+            return acc;
+        }, []);
+
+        // Send the response with the grouped questions
+        return ResponseMessages.Response(res, responseMessage.success, groupedQuestions);
     } catch (err) {
-      await client.query("ROLLBACK");  // Rollback in case of error
-      return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+        await client.query("ROLLBACK");  // Rollback in case of error
+        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
     } finally {
-      client.release();  // Release client back to pool
+        client.release();  // Release client back to pool
     }
 };
+
 
   
