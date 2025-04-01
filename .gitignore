@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+
+# TypeScript build output
+dist/
+
+# Log files
+*.log
+
+# npm package-lock file (optional but sometimes useful to ignore)
+package-lock.json
+
+# Environment variables file (if you use .env)
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE or Editor specific files
+.vscode/
+.idea/
+
+# Ignore any coverage reports or test output
+coverage/
+*.lcov
+
+# Ignore backup files
+*~
