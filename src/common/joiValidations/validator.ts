@@ -63,57 +63,7 @@ const roleSchema = Joi.object({
         }),
 });
 
-const hospitalSchema = Joi.object({
-    name: Joi.string().required().messages({
-        'string.empty': commonValidations.hospitalname.empty,
-        'any.required': commonValidations.hospitalname.required,
-        'string.pattern.base': 'Invalid hospital name'
-    }),
-    countrycode: Joi.string().required().messages({
-        'string.empty': commonValidations.countrycode.empty,
-        'any.required': commonValidations.countrycode.required,
-        'string.pattern.base': 'Invalid CountryCode'
-    }),
-    mobileno: Joi.string().required().regex(/^[6-9]\d{9}$/).messages({
-        'string.empty': commonValidations.mobileNumber.empty,
-        'any.required': commonValidations.mobileNumber.required,
-        'string.pattern.base': commonValidations.mobileNumber.invalid
-    }),
-    email: Joi.string().required().email().messages({
-        'string.empty': commonValidations.emailID.empty,
-        'any.required': commonValidations.emailID.required,
-        'string.email': commonValidations.emailID.invalid
-    }),
 
-    // Adding `poc` field with commonValidations
-    poc: Joi.object({
-        firstname: Joi.string().required().messages({
-            'string.empty': commonValidations.firstName.empty,
-            'any.required': commonValidations.firstName.required
-        }),
-        lastname: Joi.string().required().messages({
-            'string.empty': commonValidations.lastName.empty,
-            'any.required': commonValidations.lastName.required
-        }),
-        email: Joi.string().required().email().messages({
-            'string.empty': commonValidations.emailID.empty,
-            'any.required': commonValidations.emailID.required,
-            'string.email': commonValidations.emailID.invalid
-        }),
-        countrycode: Joi.string().required().messages({
-            'string.empty': commonValidations.countrycode.empty,
-            'any.required': commonValidations.countrycode.required
-        }),
-        mobileno: Joi.string().required().regex(/^[6-9]\d{9}$/).messages({
-            'string.empty': commonValidations.mobileNumber.empty,
-            'any.required': commonValidations.mobileNumber.required,
-            'string.pattern.base': commonValidations.mobileNumber.invalid
-        })
-    }).required().messages({
-        'object.base': commonValidations.poc.invalid,
-        'any.required': commonValidations.poc.required
-    })
-});
 
 const courseSchema = Joi.object({
     name: Joi.string()
@@ -124,6 +74,40 @@ const courseSchema = Joi.object({
         }),
 });
 
+export const questionWithOptionsSchema = Joi.object({
+    name: Joi.string().required().messages({
+      'string.empty': commonValidations.question.empty,
+      'any.required': commonValidations.question.required,
+    }),
+    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required().messages({
+      'string.empty': commonValidations.type.empty,
+      'any.required': commonValidations.type.required,
+      'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
+    }),
+  
+    course_id: Joi.number().required().messages({
+      'number.base': 'Course ID must be a valid number',
+      'any.required': commonValidations.course.required,
+    }),
+    options: Joi.array().items(
+      Joi.object({
+        option_text: Joi.string().required().messages({
+          'string.empty': commonValidations.optionText.empty,
+          'any.required': commonValidations.optionText.required,
+        }),
+        is_correct: Joi.boolean().required().messages({
+            'boolean.base': 'is_correct must be a boolean',
+            'any.required': "is_correct are required",
+          }),
+      }).required()
+    ).min(2).max(10).required().messages({
+      'array.base': 'Options must be an array',
+      'array.min': 'At least two options are required',
+      'array.max': 'A maximum of ten options are allowed',
+      'any.required': 'Options are required',
+    })
+  });
+
 
 
 
@@ -132,7 +116,8 @@ const courseSchema = Joi.object({
 export const joiSchema = {
     userSchema,
     roleSchema,
-    hospitalSchema,
     courseSchema,
+    questionWithOptionsSchema
+    
    
 }

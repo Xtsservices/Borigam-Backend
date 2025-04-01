@@ -142,33 +142,35 @@ class BaseRepository {
       // Validate schema for all records
       for (const record of data) {
         for (const key of Object.keys(schema)) {
-          if (schema[key].required && !record[key]) {
+          // Allow falsy values like false, 0, "", etc. only if they are not explicitly required
+          if (schema[key].required && (record[key] === undefined || record[key] === null)) {
             throw new Error(`${key} is required`);
           }
         }
       }
-
+  
       const keys = Object.keys(data[0]);
       const placeholders: string[] = [];
       const values: any[] = [];
-
+  
       data.forEach((record, index) => {
         const valuePlaceholders = keys.map((_, i) => `$${i + 1 + index * keys.length}`).join(', ');
         placeholders.push(`(${valuePlaceholders})`);
         values.push(...Object.values(record));
       });
-
+  
       const query = `
         INSERT INTO ${table} (${keys.join(', ')})
         VALUES ${placeholders.join(', ')}
         RETURNING *`;
-
+  
       return await this.query<T>(query, values, client);
-    } catch (error :any) {
+    } catch (error: any) {
       console.error('Error executing insertMultiple query:', error);
       throw new Error(`Database insertMultiple failed: ${error.message}`);
     }
   }
+  
 
   // Update method with transaction support
   async update<T>(

@@ -13,11 +13,33 @@ const createUsersTable = async () => {
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS course (
-       id SERIAL PRIMARY KEY,
-       name VARCHAR(255) UNIQUE NOT NULL,
-       status SMALLINT NOT NULL
-     );
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        status SMALLINT NOT NULL
+      );
     `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS question (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) CHECK (type IN ('radio', 'blank', 'multiple_choice', 'text')) NOT NULL,
+        status SMALLINT NOT NULL,
+        course_id INT NOT NULL,
+        FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE
+      );
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS option (
+        id SERIAL PRIMARY KEY,
+        question_id INT NOT NULL,
+        option_text VARCHAR(255) NOT NULL,
+        is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+        FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
+      );
+    `);
+    
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role (

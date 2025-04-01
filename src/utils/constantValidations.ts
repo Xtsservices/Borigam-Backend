@@ -2,25 +2,26 @@ import { invalid } from "joi";
 
 
 export const commonValidations = {
-    ambulanceType: {
-        empty: 'Type cannot be empty',
-        required: 'Type is required',
-         max: 'ambulance Type  must be at most 15 characters long'
+    question: {
+        required: "question is required",
+        empty: "question cannot be empty",
+        invalid: 'Invalid question',
+
     },
-    VehicleType: {
-        empty: 'VehicleType cannot be empty',
-        required: 'VehicleType is required',
-         max: 'ambulance Type  must be at most 15 characters long'
+    optionText: {
+        required: "optionText is required",
+        empty: "optionText cannot be empty",
+        invalid: 'Invalid optionText',
+
     },
-        vehicleNo: {
-        empty: 'Vehicle number cannot be empty',
-        required: 'Vehicle number is required',
-        max: 'Vehicle number must be at most 50 characters long'
+    isCorrect: {
+        required: "isCorrect is required",
+        empty: "isCorrect cannot be empty",
+        invalid: 'Invalid isCorrect',
+
     },
-    poc : {
-        invalid: 'Point Of Contact must be an object',
-        required: 'Point Of Contact is required'
-    },
+    
+    
     firstName: {
         required: "firstName is Required",
         empty: "firstName cannot be empty",
