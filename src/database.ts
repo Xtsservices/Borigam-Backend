@@ -12,6 +12,14 @@ const createUsersTable = async () => {
   try {
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS course (
+       id SERIAL PRIMARY KEY,
+       name VARCHAR(255) UNIQUE NOT NULL,
+       status SMALLINT NOT NULL
+     );
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS role (
        id SERIAL PRIMARY KEY,
        name VARCHAR(255) UNIQUE NOT NULL,

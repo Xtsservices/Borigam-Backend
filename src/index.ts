@@ -4,6 +4,8 @@ import cors from "cors";
 import dotenv from 'dotenv';
  import userRouter from './routes/userRoutes';
  import roleRouter from './routes/roleRoutes';
+ import courseRouter from './routes/course';
+
 
 
 import pool from './database';
@@ -20,8 +22,9 @@ app.use(cors());
 
 app.use(express.json());
  app.use('/api/users', userRouter);
-
  app.use('/api/roles', roleRouter);
+ app.use('/api/course', courseRouter);
+
 
 
 

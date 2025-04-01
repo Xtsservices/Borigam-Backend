@@ -115,6 +115,14 @@ const hospitalSchema = Joi.object({
     })
 });
 
+const courseSchema = Joi.object({
+    name: Joi.string()
+        .required()
+        .messages({
+            'string.empty': commonValidations.course.empty,
+            'any.required': commonValidations.course.required,
+        }),
+});
 
 
 
@@ -125,5 +133,6 @@ export const joiSchema = {
     userSchema,
     roleSchema,
     hospitalSchema,
+    courseSchema,
    
 }
