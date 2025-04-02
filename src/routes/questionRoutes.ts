@@ -1,5 +1,5 @@
 import express from 'express';
-import {  createQuestion,getAllQuestions,createTest } from '../controllers/questioncontroller';
+import {  createQuestion,getAllQuestions,createTest,viewAllTests,viewTestById } from '../controllers/questioncontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
@@ -11,6 +11,11 @@ router.post('/createQuestion',asyncHandler(validateToken), asyncHandler(createQu
 router.get('/getAllQuestions',asyncHandler(validateToken), asyncHandler(getAllQuestions));
 
 router.post('/createTest',asyncHandler(validateToken), asyncHandler(createTest));
+
+router.get('/viewAllTests',asyncHandler(validateToken), asyncHandler(viewAllTests));
+router.get('/viewTestByID',asyncHandler(validateToken), asyncHandler(viewTestById));
+
+
 
 
 

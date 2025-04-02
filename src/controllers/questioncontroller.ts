@@ -211,6 +211,159 @@ export const createTest = async (req: Request, res: Response, next: NextFunction
     }
 };
 
+export const viewAllTests = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into View All Tests");
+
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Fetch all tests with their associated questions, options, and course details
+        const query = `
+            SELECT 
+                t.id AS test_id, 
+                t.name AS test_name, 
+                t.duration, 
+                t.created_at,
+                COALESCE(
+                    json_agg(
+                        DISTINCT jsonb_build_object(
+                            'id', q.id, 
+                            'name', q.name, 
+                            'type', q.type, 
+                            'status', q.status,
+                            'course', jsonb_build_object(
+                                'id', c.id,
+                                'name', c.name,
+                                'status', c.status
+                            ),
+                            'options', (
+                                SELECT COALESCE(
+                                    json_agg(
+                                        jsonb_build_object(
+                                            'id', o.id, 
+                                            'option_text', o.option_text, 
+                                            'is_correct', o.is_correct
+                                        )
+                                    ), '[]'
+                                )
+                                FROM option o WHERE o.question_id = q.id
+                            )
+                        )
+                    ) FILTER (WHERE q.id IS NOT NULL), 
+                    '[]'
+                ) AS questions
+            FROM test t
+            LEFT JOIN test_questions tq ON t.id = tq.test_id
+            LEFT JOIN question q ON tq.question_id = q.id
+            LEFT JOIN course c ON q.course_id = c.id
+            GROUP BY t.id
+            ORDER BY t.id DESC;
+        `;
+
+        const result = await client.query(query);
+
+        await client.query("COMMIT");
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "No tests found" });
+        }
+
+        logger.info(`Retrieved ${result.rows.length} tests with questions, options, and courses`);
+
+        return ResponseMessages.Response(res, responseMessage.success, result.rows);
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error retrieving tests:", err);
+        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+    } finally {
+        client.release();
+    }
+};
+
+export const viewTestById = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into View Test By ID");
+    const { id } = req.query; // Extract test ID from URL params
+    if (!id) {
+        return res.status(400).json({ error: "Test ID is required" });
+    }
+
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Fetch the test with questions, options, and course details
+        const query = `
+            SELECT 
+                t.id AS test_id, 
+                t.name AS test_name, 
+                t.duration, 
+                t.created_at,
+                COALESCE(
+                    json_agg(
+                        DISTINCT jsonb_build_object(
+                            'id', q.id, 
+                            'name', q.name, 
+                            'type', q.type, 
+                            'status', q.status,
+                            'course', jsonb_build_object(
+                                'id', c.id,
+                                'name', c.name,
+                                'status', c.status
+                            ),
+                            'options', (
+                                SELECT COALESCE(
+                                    json_agg(
+                                        jsonb_build_object(
+                                            'id', o.id, 
+                                            'option_text', o.option_text, 
+                                            'is_correct', o.is_correct
+                                        )
+                                    ), '[]'
+                                )
+                                FROM option o WHERE o.question_id = q.id
+                            )
+                        )
+                    ) FILTER (WHERE q.id IS NOT NULL), 
+                    '[]'
+                ) AS questions
+            FROM test t
+            LEFT JOIN test_questions tq ON t.id = tq.test_id
+            LEFT JOIN question q ON tq.question_id = q.id
+            LEFT JOIN course c ON q.course_id = c.id
+            WHERE t.id = $1
+            GROUP BY t.id;
+        `;
+
+        const result = await client.query(query, [id]);
+
+        await client.query("COMMIT");
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Test not found" });
+        }
+
+        logger.info(`Retrieved test with ID: ${id}`);
+
+        return ResponseMessages.Response(res, responseMessage.success, result.rows[0]);
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error(`Error retrieving test with ID: ${id}`, err);
+        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+    } finally {
+        client.release();
+    }
+};
+
+
+
+
+
+
 
 
   
