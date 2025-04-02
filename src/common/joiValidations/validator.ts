@@ -134,6 +134,42 @@ export const testWithQuestionsSchema = Joi.object({
     }),
   });
 
+  export const collegeSchema = Joi.object({
+    name: Joi.string().max(255).required().messages({
+        'string.empty': commonValidations.collegeName.empty,
+        'any.required': commonValidations.collegeName.required,
+    }),
+    address: Joi.string().required().messages({
+        'string.empty': commonValidations.address.empty,
+        'any.required': commonValidations.address.required,
+    }),
+
+    contact: Joi.object({
+        firstname: Joi.string().max(100).required().messages({
+            'string.empty': commonValidations.firstName.empty,
+            'any.required': commonValidations.firstName.required,
+        }),
+        lastname: Joi.string().max(100).required().messages({
+            'string.empty': commonValidations.lastName.empty,
+            'any.required': commonValidations.lastName.required,
+        }),
+        email: Joi.string().email().required().messages({
+            'string.empty': commonValidations.emailID.empty,
+            'any.required': commonValidations.emailID.required,
+            'string.email': 'Invalid email format',
+        }),
+        countrycode: Joi.string().max(10).required().messages({
+            'string.empty': commonValidations.countrycode.empty,
+            'any.required': commonValidations.countrycode.required,
+        }),
+        mobileno: Joi.string().regex(/^[6-9]\d{9}$/).required().messages({
+            'string.empty': commonValidations.mobileNumber.empty,
+            'any.required': commonValidations.mobileNumber.required,
+            'string.pattern.base': 'Invalid mobile number format',
+        }),
+    }).required(),
+});
+
 
 
 
@@ -147,7 +183,9 @@ export const joiSchema = {
     roleSchema,
     courseSchema,
     questionWithOptionsSchema,
-    testWithQuestionsSchema
+    testWithQuestionsSchema,
+    collegeSchema,
+
     
    
 }

@@ -2,6 +2,20 @@ import { invalid } from "joi";
 
 
 export const commonValidations = {
+    collegeName: {
+        required: "collegeName is required",
+        empty: "collegeName cannot be empty",
+        invalid: 'Invalid collegeName',
+
+    },
+
+    address: {
+        required: "address is required",
+        empty: "address cannot be empty",
+        invalid: 'Invalid address',
+
+    },
+    
     question: {
         required: "question is required",
         empty: "question cannot be empty",

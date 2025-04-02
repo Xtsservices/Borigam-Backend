@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
  import roleRouter from './routes/roleRoutes';
  import courseRouter from './routes/course';
  import questionRouter from './routes/questionRoutes';
+ import collegeRouter from './routes/collegeRouter';
+
 
 
 
@@ -27,6 +29,8 @@ app.use(express.json());
  app.use('/api/roles', roleRouter);
  app.use('/api/course', courseRouter);
  app.use('/api/question', questionRouter);
+ app.use('/api/college', collegeRouter);
+
 
 
 

@@ -53,7 +53,7 @@ class common {
 
     async generatetoken(userid: any) {
 
-        const token = jwt.sign({ userId: userid }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ userId: userid }, process.env.JWT_SECRET, { expiresIn: '6h' });
 
         return token
     }

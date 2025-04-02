@@ -66,6 +66,16 @@ const createUsersTable = async () => {
      );
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS college (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        address TEXT NOT NULL,
+        status SMALLINT NOT NULL
+      );
+    `);
+    
+
 
     await pool.query(`
    CREATE TABLE IF NOT EXISTS users (
@@ -97,6 +107,17 @@ const createUsersTable = async () => {
           password VARCHAR(100)  NOT NULL
         );
       `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS college_users (
+          college_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          PRIMARY KEY (college_id, user_id),
+          FOREIGN KEY (college_id) REFERENCES college(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `);
+      
   
   } catch (error) {
     console.error("Error creating users table:", error);
