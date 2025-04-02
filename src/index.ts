@@ -7,6 +7,8 @@ import dotenv from 'dotenv';
  import courseRouter from './routes/course';
  import questionRouter from './routes/questionRoutes';
  import collegeRouter from './routes/collegeRouter';
+ import studentRouter from './routes/studentRouter';
+
 
 
 
@@ -30,6 +32,7 @@ app.use(express.json());
  app.use('/api/course', courseRouter);
  app.use('/api/question', questionRouter);
  app.use('/api/college', collegeRouter);
+ app.use('/api/student', studentRouter);
 
 
 

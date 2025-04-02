@@ -117,6 +117,16 @@ const createUsersTable = async () => {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
       `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS college_students (
+          college_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          PRIMARY KEY (college_id, user_id),
+          FOREIGN KEY (college_id) REFERENCES college(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `);
       
   
   } catch (error) {

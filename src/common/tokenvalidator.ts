@@ -49,10 +49,21 @@ export async function getdetailsfromtoken(token:any) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as { userId: string };
 
-    const user: any = await baseRepository.findOne("users", "id = $1", [
-      decoded.userId,
-    ]);
-    return user;
+    // const user: any = await baseRepository.findOne("users", "id = $1", [
+    //   decoded.userId,
+    // ]);
+
+    const user: any = await baseRepository.query(
+      `SELECT u.*, cu.college_id 
+       FROM users u 
+       LEFT JOIN college_users cu ON cu.user_id = u.id 
+       WHERE u.id = $1`, 
+      [decoded.userId]
+    );
+    
+    
+    
+    return user[0];
   } catch (error) {
     console.error('JWT verification failed:', error);
     throw new Error('Invalid token');
