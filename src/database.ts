@@ -39,6 +39,23 @@ const createUsersTable = async () => {
         FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
       );
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS test (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        duration INT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    
+      CREATE TABLE IF NOT EXISTS test_questions (
+        id SERIAL PRIMARY KEY,
+        test_id INT NOT NULL,
+        question_id INT NOT NULL,
+        FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
+        FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE,
+        UNIQUE (test_id, question_id)
+      );
+    `);
     
 
     await pool.query(`

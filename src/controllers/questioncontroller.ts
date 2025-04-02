@@ -3,6 +3,9 @@ import baseRepository from "../repo/baseRepo";
 import { joiSchema } from "../common/joiValidations/validator";
 import { questionSchema } from "../model/question";
 import { optionSchema } from "../model/option";
+import { testSchema } from "../model/test";
+import { testQuestionsSchema } from "../model/testQuestions";
+
 import logger from "../logger/logger";
 import { getStatus } from "../utils/constants";
 import ResponseMessages from "../common/responseMessages";
@@ -138,6 +141,76 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
         client.release();  // Release client back to pool
     }
 };
+
+
+export const createTest = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Create Test");
+
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Validate the request body using Joi
+        const { error } = joiSchema.testWithQuestionsSchema.validate(req.body);
+        if (error) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: error.details[0].message });
+        }
+
+        const { name, duration, questions } = req.body;
+
+        // Insert the new test
+        const newTest: any = await baseRepository.insert(
+            "test",
+            { name, duration },
+            testSchema,
+            client
+        );
+
+        // If questions are provided, process and insert them
+        if (questions && questions.length > 0) {
+            // Ensure each question exists
+            const questionIds = questions.map((q: number) => q);  // Ensure it's an array of integers
+
+            // Use parameterized query to avoid SQL injection and format the array correctly
+            const query = 'SELECT id FROM question WHERE id = ANY($1)';
+            const result = await client.query(query, [questionIds]);
+
+            // If the number of questions returned doesn't match the number of provided IDs, one or more questions do not exist
+            if (result.rows.length !== questions.length) {
+                await client.query("ROLLBACK");
+                return res.status(400).json({ error: "One or more questions not found" });
+            }
+
+            // Prepare test-questions mapping
+            const testQuestionsData = questions.map((question_id: number) => ({
+                test_id: newTest.id,
+                question_id,
+            }));
+
+            // Insert test-questions data
+            await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
+        }
+
+        // Commit the transaction
+        await client.query("COMMIT");
+        logger.info("Test created successfully");
+
+        // Respond with success message
+        return ResponseMessages.Response(res, responseMessage.success, newTest);
+
+    } catch (err) {
+        // In case of an error, roll back the transaction
+        await client.query("ROLLBACK");
+        logger.error("Error creating test:", err);
+        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+    } finally {
+        // Release the client back to the pool
+        client.release();
+    }
+};
+
 
 
   
