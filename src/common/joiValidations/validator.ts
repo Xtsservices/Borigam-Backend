@@ -218,6 +218,40 @@ const submitTestSchema = Joi.object({
     ).required()
 });
 
+export const assignStudentSchema = Joi.object({
+    studentId: Joi.number().integer().positive().required()
+        .messages({
+            "number.base": "Student ID must be a number",
+            "number.integer": "Student ID must be an integer",
+            "number.positive": "Student ID must be a positive number",
+            "any.required": "Student ID is required"
+        }),
+
+    courseId: Joi.number().integer().positive().required()
+        .messages({
+            "number.base": "Course ID must be a number",
+            "number.integer": "Course ID must be an integer",
+            "number.positive": "Course ID must be a positive number",
+            "any.required": "Course ID is required"
+        }),
+
+    startDate: Joi.date().iso().required()
+        .messages({
+            "date.base": "Start Date must be a valid date",
+            "date.format": "Start Date must be in ISO 8601 format (YYYY-MM-DD)",
+            "any.required": "Start Date is required"
+        }),
+
+    endDate: Joi.date().iso().greater(Joi.ref("startDate")).required()
+        .messages({
+            "date.base": "End Date must be a valid date",
+            "date.format": "End Date must be in ISO 8601 format (YYYY-MM-DD)",
+            "date.greater": "End Date must be greater than Start Date",
+            "any.required": "End Date is required"
+        })
+});
+
+
 export const joiSchema = {
     userSchema,
     roleSchema,
@@ -226,7 +260,8 @@ export const joiSchema = {
     testWithQuestionsSchema,
     collegeSchema,
     studentSchema,
-    submitTestSchema
+    submitTestSchema,
+    assignStudentSchema
 
     
    

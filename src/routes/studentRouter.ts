@@ -1,5 +1,5 @@
 import express from 'express';
-import { createStudent ,getAllStudents,getUnassignedStudentsCount,getAllStudentsCount,getUnassignedStudentsList } from '../controllers/studentcontroller';
+import { createStudent ,getAllStudents,getUnassignedStudentsCount,getAllStudentsCount,getUnassignedStudentsList,assignStudentToCourse } from '../controllers/studentcontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
@@ -11,7 +11,8 @@ router.post('/createStudent', asyncHandler(validateToken),asyncHandler(createStu
 router.get('/getAllStudentsCount', asyncHandler(validateToken),asyncHandler(getAllStudentsCount));
 router.get('/getAllStudents', asyncHandler(validateToken),asyncHandler(getAllStudents));
 router.get('/getUnassignedStudentsCount', asyncHandler(validateToken),asyncHandler(getUnassignedStudentsCount));
-
 router.get('/getUnassignedStudentsList', asyncHandler(validateToken),asyncHandler(getUnassignedStudentsList));
+router.post('/assignStudentToCourse', asyncHandler(validateToken),asyncHandler(assignStudentToCourse));
+
 
 export default router;
