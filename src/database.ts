@@ -161,6 +161,21 @@ const createUsersTable = async () => {
 );
 
     `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS course_students (
+          id SERIAL PRIMARY KEY,
+          student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+  `);
+  await pool.query(`
+    ALTER TABLE course_students 
+    ADD COLUMN IF NOT EXISTS start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    ADD COLUMN IF NOT EXISTS end_date DATE;
+  `);
+  
     
       
   
