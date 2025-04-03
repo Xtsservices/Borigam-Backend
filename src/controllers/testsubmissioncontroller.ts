@@ -145,6 +145,42 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
     }
 };
 
+export const getTestResultById = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Fetching test result by ID");
+
+    let { test_id,user_id } = req.query;
+    const token = req.headers['token'];
+
+    if (!test_id) {
+        return res.status(400).json({ error: "Test ID is required" });
+    }
+
+    let userDetails = await getdetailsfromtoken(token);
+    if(!user_id){
+        user_id = userDetails.id
+    }
+    try {
+        const result = await baseRepository.select(
+            "test_results",
+            { user_id: user_id, test_id },
+            ['total_questions', 'attempted', 'correct', 'wrong', 'final_score', 'final_result']
+        );
+
+        if (result.length === 0) {
+            return res.status(404).json({ error: "Test result not found for this test ID" });
+        }
+
+        return res.status(200).json({
+            message: "Test result retrieved successfully",
+            result: result[0]
+        });
+    } catch (err) {
+        logger.error("Error fetching test result:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    }
+};
+
+
 
 
 
