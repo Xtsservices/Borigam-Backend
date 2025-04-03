@@ -1,6 +1,66 @@
+import { PoolClient } from 'pg';
 import pool from '../database';  // Assuming you have a database pool
 
 class BaseRepository {
+  async upsert(
+    table: string,
+    keys: { user_id: any; test_id: any },
+    data: { total_questions: number; attempted: number; correct: number; wrong: number; final_score: string; final_result: string },
+    client: PoolClient
+  ) {
+    try {
+      const columns = Object.keys(data);
+      const values = Object.values(data);
+      const keyColumns = Object.keys(keys);
+      const keyValues = Object.values(keys);
+  
+      // Combine key and data columns for insert
+      const allColumns = [...keyColumns, ...columns];
+      const allValues = [...keyValues, ...values];
+  
+      // Create placeholders for values
+      const placeholders = allColumns.map((_, index) => `$${index + 1}`).join(', ');
+  
+      // Create SET clause for update
+      const setClause = columns.map((col, index) => `${col} = $${index + keyColumns.length + 1}`).join(', ');
+  
+      const query = `
+        INSERT INTO ${table} (${allColumns.join(', ')})
+        VALUES (${placeholders})
+        ON CONFLICT (${keyColumns.join(', ')})
+        DO UPDATE SET ${setClause}
+        RETURNING *;
+      `;
+  
+      const result = await this.query(query, allValues, client);
+      return result[0];
+    } catch (error: any) {
+      console.error('Error executing upsert query:', error);
+      throw new Error(`Database upsert failed: ${error.message}`);
+    }
+  }
+  
+  async count(
+    table: string,
+    conditions: Record<string, any>,
+    client?: PoolClient
+  ): Promise<number> {
+    try {
+      const conditionStrings = Object.keys(conditions)
+        .map((key, index) => `${key} = $${index + 1}`)
+        .join(' AND ');
+  
+      const query = `SELECT COUNT(*) FROM ${table} WHERE ${conditionStrings}`;
+      const values = Object.values(conditions);
+  
+      const result = await this.query<{ count: string }>(query, values, client);
+      return parseInt(result[0].count, 10);
+    } catch (error: any) {
+      console.error('Error executing count query:', error);
+      throw new Error(`Database count failed: ${error.message}`);
+    }
+  }
+  
 
   // Get a client connection for transactions
   async getClient() {
@@ -175,9 +235,9 @@ class BaseRepository {
   // Update method with transaction support
   async update<T>(
     table: string,
-    condition: string,
-    conditionValues: any[],
-    data: Record<string, any>,
+    condition: string,  // This is a raw condition string (e.g., "user_id = $1 AND test_id = $2")
+    conditionValues: any[],  // Array of values for placeholders in the condition
+    data: Record<string, any>,  // Object containing the column-value pairs to update
     client?: any
   ): Promise<T> {
     try {

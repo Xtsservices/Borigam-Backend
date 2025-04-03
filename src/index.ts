@@ -8,11 +8,7 @@ import dotenv from 'dotenv';
  import questionRouter from './routes/questionRoutes';
  import collegeRouter from './routes/collegeRouter';
  import studentRouter from './routes/studentRouter';
-
-
-
-
-
+ import testsubmissionRouter from './routes/testsubmissionRouter';
 
 import pool from './database';
 import { errorHandlingMiddleware } from './common/joiValidations/errorhandler'; 
@@ -33,6 +29,10 @@ app.use(express.json());
  app.use('/api/question', questionRouter);
  app.use('/api/college', collegeRouter);
  app.use('/api/student', studentRouter);
+ app.use('/api/testsubmission', testsubmissionRouter);
+
+
+ 
 
 
 

@@ -127,6 +127,41 @@ const createUsersTable = async () => {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
       `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_submissions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            test_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            is_correct BOOLEAN NOT NULL,
+            submitted_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (user_id, test_id, question_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
+            FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
+        );
+    `);
+    
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS test_results (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    test_id INT NOT NULL,
+    total_questions INT NOT NULL,
+    attempted INT NOT NULL,
+    correct INT NOT NULL,
+    wrong INT NOT NULL,
+    final_score DECIMAL(5,2) NOT NULL,
+    final_result VARCHAR(10) CHECK (final_result IN ('Pass', 'Fail')) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
+    UNIQUE (user_id, test_id)
+);
+
+    `);
+    
       
   
   } catch (error) {

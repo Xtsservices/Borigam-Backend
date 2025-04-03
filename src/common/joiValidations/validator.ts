@@ -207,7 +207,16 @@ export const testWithQuestionsSchema = Joi.object({
 
 
 
-
+const submitTestSchema = Joi.object({
+    test_id: Joi.number().integer().required(),
+    answers: Joi.array().items(
+        Joi.object({
+            question_id: Joi.number().integer().required(),
+            option_id: Joi.number().integer().allow(null),
+            text: Joi.string().allow(null, "")
+        })
+    ).required()
+});
 
 export const joiSchema = {
     userSchema,
@@ -217,6 +226,7 @@ export const joiSchema = {
     testWithQuestionsSchema,
     collegeSchema,
     studentSchema,
+    submitTestSchema
 
     
    
