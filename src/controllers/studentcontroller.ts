@@ -19,6 +19,7 @@ import { getdetailsfromtoken } from "../common/tokenvalidator";
 
 
 
+
 export const createStudent = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Create Student");    
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import {  createCourse,getCourses,createSubject,getSubjects } from '../controllers/coursecontroller';
+import {  createCourse,getCourses,createSubject,getSubjects,createBatch } from '../controllers/coursecontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
@@ -15,6 +15,8 @@ router.post('/createSubject',asyncHandler(validateToken), asyncHandler(createSub
 
 router.get('/getSubjects',asyncHandler(validateToken), asyncHandler(getSubjects));
 
+
+router.post('/createBatch',asyncHandler(validateToken), asyncHandler(createBatch));
 
 
 

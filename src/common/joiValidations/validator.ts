@@ -285,6 +285,22 @@ export const assignStudentSchema = Joi.object({
         })
 });
 
+export const batchSchema= Joi.object({
+    name: Joi.string().required(),
+    course_id: Joi.number().required(),
+    start_date: Joi.string().pattern(dateRegex).required().messages({
+        'string.pattern.base': `"start_date" must be in DD-MM-YYYY format`,
+        'any.required': `"start_date" is a required field`,
+      }),
+    
+      end_date: Joi.string().pattern(dateRegex).required().messages({
+        'string.pattern.base': `"end_date" must be in DD-MM-YYYY format`,
+        'any.required': `"end_date" is a required field`,
+      }),
+    // college_id not needed from body — coming from token
+})
+
+
 
 export const joiSchema = {
     userSchema,
@@ -296,7 +312,8 @@ export const joiSchema = {
     studentSchema,
     submitTestSchema,
     assignStudentSchema,
-    subjectSchema
+    subjectSchema,
+    batchSchema
 
     
    
