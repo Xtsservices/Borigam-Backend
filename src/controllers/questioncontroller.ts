@@ -158,55 +158,55 @@ export const createTest = async (req: Request, res: Response, next: NextFunction
             return res.status(400).json({ error: error.details[0].message });
         }
 
-        const { name, duration, questions } = req.body;
+        const { name, duration, course_id, questions } = req.body;
 
-        // Insert the new test
+        // Validate if course_id exists
+        const courseCheck = await client.query('SELECT id FROM course WHERE id = $1', [course_id]);
+        if (courseCheck.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Course not found" });
+        }
+
+        // Insert the new test with created_at defaulting to NOW()
         const newTest: any = await baseRepository.insert(
             "test",
-            { name, duration },
+            { name, duration, course_id, created_at: new Date() },
             testSchema,
             client
         );
 
         // If questions are provided, process and insert them
         if (questions && questions.length > 0) {
-            // Ensure each question exists
-            const questionIds = questions.map((q: number) => q);  // Ensure it's an array of integers
+            const questionIds = questions.map((q: number) => q);
 
-            // Use parameterized query to avoid SQL injection and format the array correctly
+            // Validate question existence
             const query = 'SELECT id FROM question WHERE id = ANY($1)';
             const result = await client.query(query, [questionIds]);
 
-            // If the number of questions returned doesn't match the number of provided IDs, one or more questions do not exist
             if (result.rows.length !== questions.length) {
                 await client.query("ROLLBACK");
                 return res.status(400).json({ error: "One or more questions not found" });
             }
 
             // Prepare test-questions mapping
-            const testQuestionsData = questions.map((question_id: number) => ({
+            const testQuestionsData = result.rows.map((row: any) => ({
                 test_id: newTest.id,
-                question_id,
+                question_id: row.id,
             }));
 
             // Insert test-questions data
             await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
         }
 
-        // Commit the transaction
         await client.query("COMMIT");
         logger.info("Test created successfully");
 
-        // Respond with success message
         return ResponseMessages.Response(res, responseMessage.success, newTest);
-
     } catch (err) {
-        // In case of an error, roll back the transaction
         await client.query("ROLLBACK");
         logger.error("Error creating test:", err);
         return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
     } finally {
-        // Release the client back to the pool
         client.release();
     }
 };

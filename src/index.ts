@@ -9,6 +9,8 @@ import dotenv from 'dotenv';
  import collegeRouter from './routes/collegeRouter';
  import studentRouter from './routes/studentRouter';
  import testsubmissionRouter from './routes/testsubmissionRouter';
+ import studentdashboardRouter from './routes/studentdashboardRouter';
+
 
 import pool from './database';
 import { errorHandlingMiddleware } from './common/joiValidations/errorhandler'; 
@@ -30,6 +32,9 @@ app.use(express.json());
  app.use('/api/college', collegeRouter);
  app.use('/api/student', studentRouter);
  app.use('/api/testsubmission', testsubmissionRouter);
+
+ app.use('/api/studentdashbaord', studentdashboardRouter);
+
 
 
  

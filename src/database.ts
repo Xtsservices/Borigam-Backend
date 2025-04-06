@@ -18,7 +18,17 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
-    
+      await pool.query(`
+    CREATE TABLE subject (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) UNIQUE NOT NULL,
+      status SMALLINT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+   `);
+  
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (
         id SERIAL PRIMARY KEY,
@@ -29,7 +39,7 @@ const createUsersTable = async () => {
         FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE
       );
     `);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS option (
         id SERIAL PRIMARY KEY,
@@ -44,8 +54,11 @@ const createUsersTable = async () => {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         duration INT NOT NULL,
+                course_id INT NOT NULL,
+
         created_at TIMESTAMP DEFAULT NOW()
       );
+     
     
       CREATE TABLE IF NOT EXISTS test_questions (
         id SERIAL PRIMARY KEY,
@@ -56,7 +69,11 @@ const createUsersTable = async () => {
         UNIQUE (test_id, question_id)
       );
     `);
-    
+
+    // await pool.query(`
+    //  ALTER TABLE test ADD COLUMN course_id INT  ;
+    // `);
+
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role (
@@ -74,7 +91,7 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
-    
+
 
 
     await pool.query(`
@@ -108,7 +125,7 @@ const createUsersTable = async () => {
         );
       `);
 
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS college_users (
           college_id INTEGER NOT NULL,
           user_id INTEGER NOT NULL,
@@ -118,7 +135,7 @@ const createUsersTable = async () => {
         );
       `);
 
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS college_students (
           college_id INTEGER NOT NULL,
           user_id INTEGER NOT NULL,
@@ -128,7 +145,7 @@ const createUsersTable = async () => {
         );
       `);
 
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS test_submissions (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -142,7 +159,7 @@ const createUsersTable = async () => {
             FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
         );
     `);
-    
+
     await pool.query(`
         CREATE TABLE IF NOT EXISTS test_results (
     id SERIAL PRIMARY KEY,
@@ -167,18 +184,20 @@ const createUsersTable = async () => {
           id SERIAL PRIMARY KEY,
           student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          end_date DATE
+
       );
   `);
-  await pool.query(`
-    ALTER TABLE course_students 
-    ADD COLUMN IF NOT EXISTS start_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    ADD COLUMN IF NOT EXISTS end_date DATE;
-  `);
+   
   
-    
-      
-  
+
+
+
+
+
+
   } catch (error) {
     console.error("Error creating users table:", error);
   }

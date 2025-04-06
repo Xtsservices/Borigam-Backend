@@ -318,6 +318,12 @@ export const commonValidations = {
         invalid: 'Invalid course',
 
     },
+    subject: {
+        required: "subject is required",
+        empty: "subject cannot be empty",
+        invalid: 'Invalid subject',
+
+    },
     OTP: {
         required: "OTP is required",
         empty: "OTP cannot be empty"

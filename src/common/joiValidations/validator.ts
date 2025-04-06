@@ -105,6 +105,16 @@ const courseSchema = Joi.object({
         }),
 });
 
+const subjectSchema = Joi.object({
+    name: Joi.string()
+        .required()
+        .messages({
+            'string.empty': commonValidations.subject.empty,
+            'any.required': commonValidations.subject.required,
+        })
+});
+
+
 export const questionWithOptionsSchema = Joi.object({
     name: Joi.string().required().messages({
         'string.empty': commonValidations.question.empty,
@@ -153,6 +163,10 @@ export const testWithQuestionsSchema = Joi.object({
       'string.empty': `"name" cannot be an empty field`,
       'any.required': `"name" is a required field`,
     }),
+    course_id: Joi.number().integer().min(1).required().messages({
+        'number.base': `"course_id" should be a type of 'number'`,
+        'any.required': `"course_id" is a required field`,
+      }),
     duration: Joi.number().integer().min(1).required().messages({
       'number.base': `"duration" should be a type of 'number'`,
       'number.min': `"duration" should be at least 1 minute`,
@@ -261,7 +275,8 @@ export const joiSchema = {
     collegeSchema,
     studentSchema,
     submitTestSchema,
-    assignStudentSchema
+    assignStudentSchema,
+    subjectSchema
 
     
    

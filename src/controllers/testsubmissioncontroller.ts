@@ -162,7 +162,7 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
     try {
         const result = await baseRepository.select(
             "test_results",
-            { user_id: user_id, test_id },
+            { user_id: userDetails.id, test_id },
             ['total_questions', 'attempted', 'correct', 'wrong', 'final_score', 'final_result']
         );
 
