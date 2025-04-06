@@ -30,7 +30,7 @@ export const registerCollege = async (req: Request, res: Response, next: NextFun
             return res.status(400).json({ error: error.details[0].message });
         }
 
-        const { name, address, contact } = req.body;
+        const { name, address,code, contact } = req.body;
         const { firstname, lastname, email, countrycode, mobileno } = contact;
 
         const status = getStatus("active");
@@ -38,7 +38,7 @@ export const registerCollege = async (req: Request, res: Response, next: NextFun
         // Insert college into `college` table
         const newCollege: any = await baseRepository.insert(
             "college",
-            { name, address, status },
+            { name, code,address, status },
             collegeSchema,
             client
         );
@@ -133,6 +133,7 @@ export const viewAllCollegesAndUsers = async (req: Request, res: Response, next:
           SELECT 
             c.id AS college_id,
             c.name AS college_name,
+            c.code AS college_code,
             c.address AS college_address,
             c.status AS college_status,
             u.id AS user_id,
@@ -162,6 +163,7 @@ export const viewAllCollegesAndUsers = async (req: Request, res: Response, next:
                 college = {
                     collegeId: row.college_id,
                     collegeName: row.college_name,
+                    collegeCode: row.college_code,
                     collegeAddress: row.college_address,
                     collegeStatus: row.college_status,
                     users: []

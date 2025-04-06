@@ -91,6 +91,7 @@ const createUsersTable = async () => {
       CREATE TABLE IF NOT EXISTS college (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) UNIQUE NOT NULL,
+        code VARCHAR(255) UNIQUE NOT NULL,
         address TEXT NOT NULL,
         status SMALLINT NOT NULL
       );
@@ -105,7 +106,7 @@ const createUsersTable = async () => {
     lastname VARCHAR(100) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     countrycode VARCHAR(10) NOT NULL,
-    mobileno VARCHAR(20) NOT NULL,
+    mobileno VARCHAR(20) UNIQUE NOT NULL,
     status SMALLINT NOT NULL
 );
     `);

@@ -200,6 +200,10 @@ export const testWithQuestionsSchema = Joi.object({
         'string.empty': commonValidations.collegeName.empty,
         'any.required': commonValidations.collegeName.required,
     }),
+    code: Joi.string().max(255).required().messages({
+        'string.empty': commonValidations.collegeCode.empty,
+        'any.required': commonValidations.collegeCode.required,
+    }),
     address: Joi.string().required().messages({
         'string.empty': commonValidations.address.empty,
         'any.required': commonValidations.address.required,

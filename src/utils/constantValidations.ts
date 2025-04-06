@@ -8,6 +8,12 @@ export const commonValidations = {
         invalid: 'Invalid collegeName',
 
     },
+    collegeCode: {
+        required: "collegeCode is required",
+        empty: "collegeCode cannot be empty",
+        invalid: 'Invalid collegeCode',
+
+    },
 
     address: {
         required: "address is required",
