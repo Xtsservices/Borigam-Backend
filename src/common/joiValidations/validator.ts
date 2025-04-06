@@ -163,39 +163,14 @@ export const questionWithOptionsSchema = Joi.object({
 
 
 export const testWithQuestionsSchema = Joi.object({
-  name: Joi.string().max(255).required().messages({
-    'string.base': `"name" should be a type of 'text'`,
-    'string.empty': `"name" cannot be an empty field`,
-    'any.required': `"name" is a required field`,
-  }),
-
-  subject_id: Joi.number().integer().min(1).required().messages({
-    'number.base': `"subject_id" should be a type of 'number'`,
-    'any.required': `"subject_id" is a required field`,
-  }),
-
-  duration: Joi.number().integer().min(1).required().messages({
-    'number.base': `"duration" should be a type of 'number'`,
-    'number.min': `"duration" should be at least 1 minute`,
-    'any.required': `"duration" is a required field`,
-  }),
-
-  start_date: Joi.string().pattern(dateRegex).required().messages({
-    'string.pattern.base': `"start_date" must be in DD-MM-YYYY format`,
-    'any.required': `"start_date" is a required field`,
-  }),
-
-  end_date: Joi.string().pattern(dateRegex).required().messages({
-    'string.pattern.base': `"end_date" must be in DD-MM-YYYY format`,
-    'any.required': `"end_date" is a required field`,
-  }),
-
-  questions: Joi.array().items(Joi.number().integer()).min(1).required().messages({
-    'array.base': `"questions" should be an array`,
-    'array.min': `"questions" should contain at least 1 question`,
-    'any.required': `"questions" is a required field`,
-  }),
-});
+    name: Joi.string().required(),
+    duration: Joi.number().positive().required(),
+    subject_id: Joi.number().integer().positive().required(),
+    start_date: Joi.string().required(), // Expecting "DD-MM-YYYY"
+    end_date: Joi.string().required(),   // Expecting "DD-MM-YYYY"
+    batch_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
+    questions: Joi.array().items(Joi.number().integer().positive()).optional()
+  });
 
   export const collegeSchema = Joi.object({
     name: Joi.string().max(255).required().messages({
@@ -326,6 +301,12 @@ export const batchSchema= Joi.object({
     // college_id not needed from body — coming from token
 })
 
+export const testBatchSchema = Joi.object({
+    test_id: Joi.number().integer().positive().required(),
+    batch_id: Joi.number().integer().positive().required(),
+    created_at: Joi.number().required()
+  });
+
 
 
 export const joiSchema = {
@@ -339,7 +320,8 @@ export const joiSchema = {
     submitTestSchema,
     assignStudentSchema,
     subjectSchema,
-    batchSchema
+    batchSchema,
+    testBatchSchema
 
     
    

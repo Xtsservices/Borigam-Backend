@@ -213,6 +213,14 @@ const createUsersTable = async () => {
           end_date BIGINT
       );
     `);
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS test_batches (
+      id SERIAL PRIMARY KEY,
+      test_id INT NOT NULL ,
+      batch_id INT NOT NULL ,
+      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) -- store as Unix timestamp
+    );
+     `);
     
 
 

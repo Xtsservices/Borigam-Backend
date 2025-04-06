@@ -4,6 +4,8 @@ import { joiSchema } from "../common/joiValidations/validator";
 import { questionSchema } from "../model/question";
 import { optionSchema } from "../model/option";
 import { testSchema } from "../model/test";
+import { testBatchSchema } from "../model/testbatch";
+
 import { testQuestionsSchema } from "../model/testQuestions";
 
 import logger from "../logger/logger";
@@ -157,97 +159,135 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
 
 
 export const createTest = async (req: Request, res: Response, next: NextFunction) => {
-  logger.info("Entered Into Create Test");
-
-  const client: PoolClient = await baseRepository.getClient();
-
-  try {
-    await client.query("BEGIN");
-
-    // Validate the request body using Joi
-    const { error } = joiSchema.testWithQuestionsSchema.validate(req.body);
-    if (error) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: error.details[0].message });
-    }
-
-    const { name, duration, subject_id, start_date, end_date, questions } = req.body;
-
-    // Parse start and end dates from DD-MM-YYYY to Unix timestamp
-    const parsedStart = moment(start_date, "DD-MM-YYYY").startOf("day");
-    const parsedEnd = moment(end_date, "DD-MM-YYYY").endOf("day");
-    
-    if (!parsedStart.isValid() || !parsedEnd.isValid()) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Invalid date format. Use DD-MM-YYYY." });
-    }
-    
-    const startTimestamp = Math.floor(parsedStart.valueOf() / 1000); // in seconds
-    const endTimestamp = Math.floor(parsedEnd.valueOf() / 1000);     // in seconds
-    
-    if (endTimestamp <= startTimestamp) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "end_date must be after start_date." });
-    }
-     
-    // Validate if subject exists
-    const subjectCheck = await client.query('SELECT id FROM subject WHERE id = $1', [subject_id]);
-    if (subjectCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Subject not found" });
-    }
-
-    // Insert the new test
-    const newTest: any = await baseRepository.insert(
-      "test",
-      {
+    logger.info("Entered Into Create Test");
+  
+    const client: PoolClient = await baseRepository.getClient();
+  
+    try {
+      await client.query("BEGIN");
+  
+      // Validate the request body
+      const { error } = joiSchema.testWithQuestionsSchema.validate(req.body);
+      if (error) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: error.details[0].message });
+      }
+  
+      const {
         name,
         duration,
         subject_id,
-        start_date: startTimestamp,
-        end_date: endTimestamp,
-        created_at: moment(new Date()).unix(), // store created_at as unix timestamp
-      },
-      testSchema,
-      client
-    );
-
-    // If questions are provided, process and insert them
-    if (questions && questions.length > 0) {
-      const questionIds = questions.map((q: number) => q);
-
-      // Validate question existence
-      const query = 'SELECT id FROM question WHERE id = ANY($1)';
-      const result = await client.query(query, [questionIds]);
-
-      if (result.rows.length !== questions.length) {
+        start_date,
+        end_date,
+        batch_ids,
+        questions
+      } = req.body;
+  
+      // Convert to moment objects and validate
+      const parsedStart = moment(start_date, "DD-MM-YYYY").startOf("day");
+      const parsedEnd = moment(end_date, "DD-MM-YYYY").endOf("day");
+  
+      if (!parsedStart.isValid() || !parsedEnd.isValid()) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: "One or more questions not found" });
+        return res.status(400).json({ error: "Invalid date format. Use DD-MM-YYYY." });
       }
-
-      // Prepare test-questions mapping
-      const testQuestionsData = result.rows.map((row: any) => ({
+  
+      const startTimestamp = parsedStart.unix(); // seconds
+      const endTimestamp = parsedEnd.unix();     // seconds
+  
+      if (endTimestamp <= startTimestamp) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "end_date must be after start_date." });
+      }
+  
+      // Validate subject
+      const subjectCheck = await client.query('SELECT id FROM subject WHERE id = $1', [subject_id]);
+      if (subjectCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Subject not found" });
+      }
+  
+      // Validate batches
+      if (!Array.isArray(batch_ids) || batch_ids.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "At least one batch_id is required" });
+      }
+  
+      const batchCheck = await client.query(
+        'SELECT id FROM batch WHERE id = ANY($1)',
+        [batch_ids]
+      );
+  
+      if (batchCheck.rows.length !== batch_ids.length) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "One or more batches not found" });
+      }
+  
+      // Insert into test table
+      const newTest: any = await baseRepository.insert(
+        "test",
+        {
+          name,
+          duration,
+          subject_id,
+          start_date: startTimestamp,
+          end_date: endTimestamp,
+          created_at: moment().unix()
+        },
+        testSchema,
+        client
+      );
+  
+      // Insert into test_batches table
+      const testBatchData = batch_ids.map((batchId: number) => ({
         test_id: newTest.id,
-        question_id: row.id,
+        batch_id: batchId,
+        created_at: moment().unix()
       }));
-
-      // Insert test-questions data
-      await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
+  
+      await baseRepository.insertMultiple(
+        "test_batches",
+        testBatchData,
+        testBatchSchema,
+        client
+      );
+      
+  
+      // Handle questions
+      if (questions && questions.length > 0) {
+        const questionIds = questions.map((q: number) => q);
+  
+        const result = await client.query(
+          'SELECT id FROM question WHERE id = ANY($1)',
+          [questionIds]
+        );
+  
+        if (result.rows.length !== questions.length) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "One or more questions not found" });
+        }
+  
+        const testQuestionsData = result.rows.map((row: any) => ({
+          test_id: newTest.id,
+          question_id: row.id
+        }));
+  
+        await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
+      }
+  
+      await client.query("COMMIT");
+      logger.info("Test created successfully");
+  
+      return ResponseMessages.Response(res, "Test created successfully", newTest);
+  
+    } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Error creating test:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-    logger.info("Test created successfully");
-
-    return ResponseMessages.Response(res, responseMessage.success, newTest);
-  } catch (err) {
-    await client.query("ROLLBACK");
-    logger.error("Error creating test:", err);
-    return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
-  } finally {
-    client.release();
-  }
-};
-
+  };
 
 export const viewAllTests = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into View All Tests");
