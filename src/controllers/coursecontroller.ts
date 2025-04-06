@@ -215,6 +215,65 @@ export const createBatch = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
+export const viewAllBatches = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into View All Batches");
+
+    const token = req.headers['token'];
+    const details = await getdetailsfromtoken(token);
+    const college_id = details.college_id;
+    console.log("college_id from token:", college_id);
+
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Dynamic condition based on whether college_id is null
+        const query = `
+            SELECT 
+                b.id AS batch_id,
+                b.name,
+                b.course_id,
+                c.name AS course_name,
+                b.college_id,
+                clg.name AS college_name,
+                b.start_date,
+                b.end_date,
+                b.status
+            FROM batch b
+            LEFT JOIN course c ON b.course_id = c.id
+            LEFT JOIN college clg ON b.college_id = clg.id
+            WHERE 
+                ($1::int IS NULL AND b.college_id IS NULL)
+                OR
+                ($1::int IS NOT NULL AND b.college_id = $1)
+            ORDER BY b.id DESC;
+        `;
+
+        const result = await client.query(query, [college_id]);
+
+        await client.query("COMMIT");
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "No batches found" });
+        }
+
+        logger.info(`Retrieved ${result.rows.length} batches with college details`);
+
+        return ResponseMessages.Response(res, "Batches retrieved successfully", result.rows);
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error retrieving batches:", err);
+        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+        client.release();
+    }
+};
+
+
+
+
 
 
 
