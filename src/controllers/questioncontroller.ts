@@ -11,6 +11,8 @@ import { getStatus } from "../utils/constants";
 import ResponseMessages from "../common/responseMessages";
 import { responseMessage } from "../utils/serverResponses";
 import { PoolClient } from "pg";
+import moment from 'moment';
+
 
 export const createQuestion = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Create Question");
@@ -27,20 +29,20 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
             return res.status(400).json({ error: error.details[0].message });
         }
 
-        const { name, type, course_id, options } = req.body;
+        const { name, type, subject_id, options } = req.body;
         const status = getStatus("active");
 
-        // Check if the course exists
-        const courseData: any = await baseRepository.select("course", { id: course_id }, ['id']);
-        if (!courseData || courseData.length === 0) {
+        // Check if the subject exists
+        const subjectData: any = await baseRepository.select("subject", { id: subject_id }, ['id']);
+        if (!subjectData || subjectData.length === 0) {
             await client.query("ROLLBACK");
-            return res.status(400).json({ error: "Course not found" });
+            return res.status(400).json({ error: "Subject not found" });
         }
 
         // Insert the new question
         const newQuestion: any = await baseRepository.insert(
             "question",
-            { name, type, status, course_id },
+            { name, type, status, subject_id },
             questionSchema,
             client
         );
@@ -54,7 +56,6 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
                 is_correct: typeof opt.is_correct === 'boolean' ? opt.is_correct : false // Default to false if not a boolean
             }));
 
-            console.log('Options Data:', optionsData); // Log options for debugging
 
             // Insert options data
             await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
@@ -88,11 +89,22 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
 
         // Query to get all questions along with options and course info
         const query = `
-            SELECT q.id, q.name, q.type, q.status, q.course_id, c.name AS course_name, o.id AS option_id, o.option_text, o.is_correct
-            FROM question q
-            LEFT JOIN option o ON q.id = o.question_id
-            LEFT JOIN course c ON q.course_id = c.id;
-        `;
+        SELECT 
+            q.id, 
+            q.name, 
+            q.type, 
+            q.status, 
+            s.id AS subject_id, 
+            s.name AS subject_name, 
+            o.id AS option_id, 
+            o.option_text, 
+            o.is_correct
+        FROM question q
+        LEFT JOIN option o ON q.id = o.question_id
+        LEFT JOIN subject s ON q.subject_id = s.id;
+    `;
+    
+
 
         const result = await client.query(query);
         const questions = result.rows;  // Assuming `result.rows` contains the data
@@ -106,15 +118,15 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
         // Group the questions by their id
         const groupedQuestions = questions.reduce((acc: any[], item) => {
             let question = acc.find(q => q.id === item.id);
-            
+
             if (!question) {
                 question = {
                     id: item.id,
                     name: item.name,
                     type: item.type,
                     status: getStatus(item.status),
-                    course_id: item.course_id,
-                    course_name: item.course_name,
+                    subject_id: item.subject_id,
+                    subject_name: item.subject_name,
                     options: []
                 };
                 acc.push(question);
@@ -143,73 +155,99 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
 };
 
 
+
 export const createTest = async (req: Request, res: Response, next: NextFunction) => {
-    logger.info("Entered Into Create Test");
+  logger.info("Entered Into Create Test");
 
-    const client: PoolClient = await baseRepository.getClient();
+  const client: PoolClient = await baseRepository.getClient();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        // Validate the request body using Joi
-        const { error } = joiSchema.testWithQuestionsSchema.validate(req.body);
-        if (error) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: error.details[0].message });
-        }
-
-        const { name, duration, course_id, questions } = req.body;
-
-        // Validate if course_id exists
-        const courseCheck = await client.query('SELECT id FROM course WHERE id = $1', [course_id]);
-        if (courseCheck.rows.length === 0) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: "Course not found" });
-        }
-
-        // Insert the new test with created_at defaulting to NOW()
-        const newTest: any = await baseRepository.insert(
-            "test",
-            { name, duration, course_id, created_at: new Date() },
-            testSchema,
-            client
-        );
-
-        // If questions are provided, process and insert them
-        if (questions && questions.length > 0) {
-            const questionIds = questions.map((q: number) => q);
-
-            // Validate question existence
-            const query = 'SELECT id FROM question WHERE id = ANY($1)';
-            const result = await client.query(query, [questionIds]);
-
-            if (result.rows.length !== questions.length) {
-                await client.query("ROLLBACK");
-                return res.status(400).json({ error: "One or more questions not found" });
-            }
-
-            // Prepare test-questions mapping
-            const testQuestionsData = result.rows.map((row: any) => ({
-                test_id: newTest.id,
-                question_id: row.id,
-            }));
-
-            // Insert test-questions data
-            await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
-        }
-
-        await client.query("COMMIT");
-        logger.info("Test created successfully");
-
-        return ResponseMessages.Response(res, responseMessage.success, newTest);
-    } catch (err) {
-        await client.query("ROLLBACK");
-        logger.error("Error creating test:", err);
-        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
-    } finally {
-        client.release();
+    // Validate the request body using Joi
+    const { error } = joiSchema.testWithQuestionsSchema.validate(req.body);
+    if (error) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: error.details[0].message });
     }
+
+    const { name, duration, subject_id, start_date, end_date, questions } = req.body;
+
+    // Parse start and end dates from DD-MM-YYYY to Unix timestamp
+    const parsedStart = moment(start_date, "DD-MM-YYYY").startOf("day");
+    const parsedEnd = moment(end_date, "DD-MM-YYYY").endOf("day");
+    
+    if (!parsedStart.isValid() || !parsedEnd.isValid()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Invalid date format. Use DD-MM-YYYY." });
+    }
+    
+    const startTimestamp = Math.floor(parsedStart.valueOf() / 1000); // in seconds
+    const endTimestamp = Math.floor(parsedEnd.valueOf() / 1000);     // in seconds
+    
+    if (endTimestamp <= startTimestamp) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "end_date must be after start_date." });
+    }
+     
+    // Validate if subject exists
+    const subjectCheck = await client.query('SELECT id FROM subject WHERE id = $1', [subject_id]);
+    if (subjectCheck.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Subject not found" });
+    }
+
+    // Insert the new test
+    const newTest: any = await baseRepository.insert(
+      "test",
+      {
+        name,
+        duration,
+        subject_id,
+        start_date: startTimestamp,
+        end_date: endTimestamp,
+        created_at: moment(new Date()).unix(), // store created_at as unix timestamp
+      },
+      testSchema,
+      client
+    );
+
+    // If questions are provided, process and insert them
+    if (questions && questions.length > 0) {
+      const questionIds = questions.map((q: number) => q);
+
+      // Validate question existence
+      const query = 'SELECT id FROM question WHERE id = ANY($1)';
+      const result = await client.query(query, [questionIds]);
+
+      if (result.rows.length !== questions.length) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "One or more questions not found" });
+      }
+
+      // Prepare test-questions mapping
+      const testQuestionsData = result.rows.map((row: any) => ({
+        test_id: newTest.id,
+        question_id: row.id,
+      }));
+
+      // Insert test-questions data
+      await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
+    }
+
+    await client.query("COMMIT");
+    logger.info("Test created successfully");
+
+    return ResponseMessages.Response(res, responseMessage.success, newTest);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    logger.error("Error creating test:", err);
+    return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+  } finally {
+    client.release();
+  }
 };
+
 
 export const viewAllTests = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into View All Tests");
@@ -219,13 +257,16 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
     try {
         await client.query("BEGIN");
 
-        // Fetch all tests with their associated questions, options, and course details
         const query = `
             SELECT 
                 t.id AS test_id, 
                 t.name AS test_name, 
                 t.duration, 
+                t.start_date,
+                t.end_date,
                 t.created_at,
+                s.id AS subject_id,
+                s.name AS subject_name,
                 COALESCE(
                     json_agg(
                         DISTINCT jsonb_build_object(
@@ -233,11 +274,6 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
                             'name', q.name, 
                             'type', q.type, 
                             'status', q.status,
-                            'course', jsonb_build_object(
-                                'id', c.id,
-                                'name', c.name,
-                                'status', c.status
-                            ),
                             'options', (
                                 SELECT COALESCE(
                                     json_agg(
@@ -255,10 +291,10 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
                     '[]'
                 ) AS questions
             FROM test t
+            LEFT JOIN subject s ON t.subject_id = s.id
             LEFT JOIN test_questions tq ON t.id = tq.test_id
             LEFT JOIN question q ON tq.question_id = q.id
-            LEFT JOIN course c ON q.course_id = c.id
-            GROUP BY t.id
+            GROUP BY t.id, s.id
             ORDER BY t.id DESC;
         `;
 
@@ -270,7 +306,7 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
             return res.status(404).json({ message: "No tests found" });
         }
 
-        logger.info(`Retrieved ${result.rows.length} tests with questions, options, and courses`);
+        logger.info(`Retrieved ${result.rows.length} tests with questions and subject info`);
 
         return ResponseMessages.Response(res, responseMessage.success, result.rows);
 
@@ -283,9 +319,14 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
     }
 };
 
+
+
+
 export const viewTestById = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into View Test By ID");
-    const { id } = req.query; // Extract test ID from URL params
+
+    const { id } = req.query;
+
     if (!id) {
         return res.status(400).json({ error: "Test ID is required" });
     }
@@ -295,13 +336,16 @@ export const viewTestById = async (req: Request, res: Response, next: NextFuncti
     try {
         await client.query("BEGIN");
 
-        // Fetch the test with questions, options, and course details
         const query = `
             SELECT 
                 t.id AS test_id, 
                 t.name AS test_name, 
                 t.duration, 
+                t.start_date,
+                t.end_date,
                 t.created_at,
+                s.id AS subject_id,
+                s.name AS subject_name,
                 COALESCE(
                     json_agg(
                         DISTINCT jsonb_build_object(
@@ -309,11 +353,6 @@ export const viewTestById = async (req: Request, res: Response, next: NextFuncti
                             'name', q.name, 
                             'type', q.type, 
                             'status', q.status,
-                            'course', jsonb_build_object(
-                                'id', c.id,
-                                'name', c.name,
-                                'status', c.status
-                            ),
                             'options', (
                                 SELECT COALESCE(
                                     json_agg(
@@ -331,11 +370,11 @@ export const viewTestById = async (req: Request, res: Response, next: NextFuncti
                     '[]'
                 ) AS questions
             FROM test t
+            LEFT JOIN subject s ON t.subject_id = s.id
             LEFT JOIN test_questions tq ON t.id = tq.test_id
             LEFT JOIN question q ON tq.question_id = q.id
-            LEFT JOIN course c ON q.course_id = c.id
             WHERE t.id = $1
-            GROUP BY t.id;
+            GROUP BY t.id, s.id;
         `;
 
         const result = await client.query(query, [id]);
@@ -366,4 +405,5 @@ export const viewTestById = async (req: Request, res: Response, next: NextFuncti
 
 
 
-  
+
+

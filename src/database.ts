@@ -18,16 +18,18 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
-      await pool.query(`
-    CREATE TABLE subject (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) UNIQUE NOT NULL,
-      status SMALLINT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
-   `);
-  
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS question (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) CHECK (type IN ('radio', 'blank', 'multiple_choice', 'text')) NOT NULL,
+        status SMALLINT NOT NULL,
+        subject_id INT NOT NULL,
+        FOREIGN KEY (subject_id) REFERENCES subject(id) ON DELETE CASCADE
+      );
+    `);
+
+
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (
@@ -50,14 +52,16 @@ const createUsersTable = async () => {
       );
     `);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS test (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        duration INT NOT NULL,
-                course_id INT NOT NULL,
+     CREATE TABLE IF NOT EXISTS test (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    duration INT NOT NULL,
+    subject_id INT NOT NULL,
+    start_date BIGINT NOT NULL,  -- Unix timestamp
+    end_date BIGINT NOT NULL,    -- Unix timestamp
+    created_at BIGINT NOT NULL
+);
 
-        created_at TIMESTAMP DEFAULT NOW()
-      );
      
     
       CREATE TABLE IF NOT EXISTS test_questions (
@@ -190,8 +194,8 @@ const createUsersTable = async () => {
 
       );
   `);
-   
-  
+
+
 
 
 

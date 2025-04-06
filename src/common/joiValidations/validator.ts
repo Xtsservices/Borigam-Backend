@@ -5,6 +5,8 @@ import Joi from 'joi';
 import { commonValidations } from '../../utils/constantValidations';
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9]{1}[A-Z]{1}[0-9]{1}$/;
+const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
+
 //const JoiExtended = Joi.extend(JoiExtensionFile);
 //joi for validation
 enum RoleName {
@@ -126,9 +128,9 @@ export const questionWithOptionsSchema = Joi.object({
         'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
     }),
 
-    course_id: Joi.number().required().messages({
-        'number.base': 'Course ID must be a valid number',
-        'any.required': commonValidations.course.required,
+    subject_id: Joi.number().required().messages({
+        'number.base': 'subject ID must be a valid number',
+        'any.required': commonValidations.subject.required,
     }),
 
     options: Joi.when('type', {
@@ -157,27 +159,41 @@ export const questionWithOptionsSchema = Joi.object({
 });
 
 
+
 export const testWithQuestionsSchema = Joi.object({
-    name: Joi.string().max(255).required().messages({
-      'string.base': `"name" should be a type of 'text'`,
-      'string.empty': `"name" cannot be an empty field`,
-      'any.required': `"name" is a required field`,
-    }),
-    course_id: Joi.number().integer().min(1).required().messages({
-        'number.base': `"course_id" should be a type of 'number'`,
-        'any.required': `"course_id" is a required field`,
-      }),
-    duration: Joi.number().integer().min(1).required().messages({
-      'number.base': `"duration" should be a type of 'number'`,
-      'number.min': `"duration" should be at least 1 minute`,
-      'any.required': `"duration" is a required field`,
-    }),
-    questions: Joi.array().items(Joi.number().integer()).min(1).required().messages({
-      'array.base': `"questions" should be an array`,
-      'array.min': `"questions" should contain at least 1 question`,
-      'any.required': `"questions" is a required field`,
-    }),
-  });
+  name: Joi.string().max(255).required().messages({
+    'string.base': `"name" should be a type of 'text'`,
+    'string.empty': `"name" cannot be an empty field`,
+    'any.required': `"name" is a required field`,
+  }),
+
+  subject_id: Joi.number().integer().min(1).required().messages({
+    'number.base': `"subject_id" should be a type of 'number'`,
+    'any.required': `"subject_id" is a required field`,
+  }),
+
+  duration: Joi.number().integer().min(1).required().messages({
+    'number.base': `"duration" should be a type of 'number'`,
+    'number.min': `"duration" should be at least 1 minute`,
+    'any.required': `"duration" is a required field`,
+  }),
+
+  start_date: Joi.string().pattern(dateRegex).required().messages({
+    'string.pattern.base': `"start_date" must be in DD-MM-YYYY format`,
+    'any.required': `"start_date" is a required field`,
+  }),
+
+  end_date: Joi.string().pattern(dateRegex).required().messages({
+    'string.pattern.base': `"end_date" must be in DD-MM-YYYY format`,
+    'any.required': `"end_date" is a required field`,
+  }),
+
+  questions: Joi.array().items(Joi.number().integer()).min(1).required().messages({
+    'array.base': `"questions" should be an array`,
+    'array.min': `"questions" should contain at least 1 question`,
+    'any.required': `"questions" is a required field`,
+  }),
+});
 
   export const collegeSchema = Joi.object({
     name: Joi.string().max(255).required().messages({
