@@ -18,6 +18,13 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subject (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        status SMALLINT NOT NULL
+      );
+    `);
        await pool.query(`
     CREATE TABLE IF NOT EXISTS batch (
       id SERIAL PRIMARY KEY,
@@ -200,12 +207,13 @@ const createUsersTable = async () => {
           id SERIAL PRIMARY KEY,
           student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+          batch_id INT NOT NULL REFERENCES batch(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          start_date DATE NOT NULL DEFAULT CURRENT_DATE,
-          end_date DATE
-
+          start_date BIGINT NOT NULL,
+          end_date BIGINT
       );
-  `);
+    `);
+    
 
 
 

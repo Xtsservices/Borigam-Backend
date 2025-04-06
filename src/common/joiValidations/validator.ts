@@ -1,5 +1,7 @@
 
 import Joi from 'joi';
+import moment from "moment";
+
 
 //import {JoiExtensionFile} from 'joi-extension-file';
 import { commonValidations } from '../../utils/constantValidations';
@@ -252,38 +254,62 @@ const submitTestSchema = Joi.object({
     ).required()
 });
 
+
+
 export const assignStudentSchema = Joi.object({
-    studentId: Joi.number().integer().positive().required()
-        .messages({
-            "number.base": "Student ID must be a number",
-            "number.integer": "Student ID must be an integer",
-            "number.positive": "Student ID must be a positive number",
-            "any.required": "Student ID is required"
-        }),
+    studentId: Joi.number().integer().positive().required().messages({
+        "number.base": "Student ID must be a number",
+        "number.integer": "Student ID must be an integer",
+        "number.positive": "Student ID must be a positive number",
+        "any.required": "Student ID is required"
+    }),
 
-    courseId: Joi.number().integer().positive().required()
-        .messages({
-            "number.base": "Course ID must be a number",
-            "number.integer": "Course ID must be an integer",
-            "number.positive": "Course ID must be a positive number",
-            "any.required": "Course ID is required"
-        }),
+    courseId: Joi.number().integer().positive().required().messages({
+        "number.base": "Course ID must be a number",
+        "number.integer": "Course ID must be an integer",
+        "number.positive": "Course ID must be a positive number",
+        "any.required": "Course ID is required"
+    }),
 
-    startDate: Joi.date().iso().required()
-        .messages({
-            "date.base": "Start Date must be a valid date",
-            "date.format": "Start Date must be in ISO 8601 format (YYYY-MM-DD)",
-            "any.required": "Start Date is required"
-        }),
+    batchId: Joi.number().integer().positive().required().messages({
+        "number.base": "Batch ID must be a number",
+        "number.integer": "Batch ID must be an integer",
+        "number.positive": "Batch ID must be a positive number",
+        "any.required": "Batch ID is required"
+    }),
 
-    endDate: Joi.date().iso().greater(Joi.ref("startDate")).required()
-        .messages({
-            "date.base": "End Date must be a valid date",
-            "date.format": "End Date must be in ISO 8601 format (YYYY-MM-DD)",
-            "date.greater": "End Date must be greater than Start Date",
-            "any.required": "End Date is required"
-        })
+    // startDate: Joi.string()
+    //     .pattern(/^\d{2}-\d{2}-\d{4}$/)
+    //     .required()
+    //     .messages({
+    //         "string.pattern.base": "Start Date must be in DD-MM-YYYY format",
+    //         "any.required": "Start Date is required"
+    //     }),
+
+    // endDate: Joi.string()
+    //     .pattern(/^\d{2}-\d{2}-\d{4}$/)
+    //     .required()
+    //     .custom((value, helpers) => {
+    //         const { startDate } = helpers.state.ancestors[0];
+    //         const start = moment(startDate, "DD-MM-YYYY", true);
+    //         const end = moment(value, "DD-MM-YYYY", true);
+
+    //         if (!end.isValid()) {
+    //             return helpers.error("any.invalid", { message: "End Date must be in DD-MM-YYYY format" });
+    //         }
+
+    //         if (!start.isValid()) {
+    //             return helpers.error("any.invalid", { message: "Start Date is not valid" });
+    //         }
+
+    //         if (end.isSameOrBefore(start)) {
+    //             return helpers.error("any.invalid", { message: "End Date must be after Start Date" });
+    //         }
+
+    //         return value;
+    //     })
 });
+
 
 export const batchSchema= Joi.object({
     name: Joi.string().required(),
