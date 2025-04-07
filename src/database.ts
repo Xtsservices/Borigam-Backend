@@ -175,6 +175,8 @@ const createUsersTable = async () => {
             test_id INTEGER NOT NULL,
             question_id INTEGER NOT NULL,
             is_correct BOOLEAN NOT NULL,
+                option_id INTEGER REFERENCES option(id), -- Optional option reference
+
             submitted_at TIMESTAMP DEFAULT NOW(),
             UNIQUE (user_id, test_id, question_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -221,6 +223,8 @@ await pool.query(`
       created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) -- store as Unix timestamp
     );
      `);
+
+  
     
 
 

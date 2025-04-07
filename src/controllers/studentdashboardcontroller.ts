@@ -11,77 +11,41 @@ import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
 
 export const getStudentTestStatus = async (req: Request, res: Response, next: NextFunction) => {
-    logger.info("Fetching test status for student");
+    logger.info("Fetching student by ID");
 
-    const { studentId } = req.query; // Using params for clarity
+    let studentId;
 
-    const client: PoolClient = await baseRepository.getClient();
+    const token = req.headers['token'];
+    let collegeId: number | null = null;
+
+    const details = await getdetailsfromtoken(token);
+    studentId = details.id
+
     try {
-        await client.query("BEGIN");
 
-        // Get all courseIds the student is enrolled in
-        const studentCourses: { course_id: number }[] = await baseRepository.select(
-            "course_students",
-            { student_id: studentId }, // ✅ Changed user_id to student_id
-            ["course_id"],
-            client
-        );
 
-        console.log(`Student ${studentId} is enrolled in courses:`, studentCourses);
+        const students: any = await common.getStudentDetails(studentId, collegeId)
 
-        if (studentCourses.length === 0) {
-            await client.query("ROLLBACK");
-            return ResponseMessages.noDataFound(res, "Student is not enrolled in any courses");
-        }
+      
+       
 
-        let courseTestStatus = [];
-
-        for (const { course_id } of studentCourses) {
-            // Get all test IDs for the course
-            const testIds: { id: number }[] = await baseRepository.select(
-                "test",
-                { course_id },
-                ["id"],
-                client
-            );
-            const testIdList = testIds.map(t => t.id); // Extract test IDs
-
-            const totalTests = testIdList.length;
-
-            // Count completed tests where test_id is in testIdList
-            let completedTests = 0;
-            if (totalTests > 0) {
-                completedTests = await baseRepository.count(
-                    "test_results",
-                    { user_id: studentId, test_id: testIdList, status: 'completed' },
-                    client
-                );
+        if (students && students.length > 0) {
+            if (students[0] && students[0].batches &&  students[0].batches.length>0 &&  students[0].batches[0].batch_id) {
+                let batch_id = students[0].batches[0].batch_id;
+                 const tests: any = await common.getTestsAssingedForStudent(studentId, batch_id)
+                students[0].tests =tests
+                return ResponseMessages.Response(res, "Student fetched successfully", students[0]);
+            }else{
+                return ResponseMessages.Response(res, "Student fetched successfully", students[0]);
             }
-
-            // Calculate pending tests
-            const pendingTests = totalTests - completedTests;
-
-            courseTestStatus.push({
-                courseId: course_id,
-                availableTests: totalTests,
-                completedTests,
-                pendingTests
-            });
+            
+        } else {
+            return ResponseMessages.noDataFound(res, "Student not found");
         }
-
-        await client.query("COMMIT");
-
-        return ResponseMessages.Response(res, "Student test status retrieved successfully", {
-            studentId,
-            courses: courseTestStatus
-        });
 
     } catch (err) {
-        await client.query("ROLLBACK");
-        logger.error("Error fetching student test status", err);
+        logger.error("Error fetching student by ID", err);
         return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
-    } finally {
-        client.release();
     }
 };
 
