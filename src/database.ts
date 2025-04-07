@@ -43,22 +43,14 @@ const createUsersTable = async () => {
         type VARCHAR(50) CHECK (type IN ('radio', 'blank', 'multiple_choice', 'text')) NOT NULL,
         status SMALLINT NOT NULL,
         subject_id INT NOT NULL,
+        image TEXT,
         FOREIGN KEY (subject_id) REFERENCES subject(id) ON DELETE CASCADE
       );
     `);
 
 
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS question (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        type VARCHAR(50) CHECK (type IN ('radio', 'blank', 'multiple_choice', 'text')) NOT NULL,
-        status SMALLINT NOT NULL,
-        course_id INT NOT NULL,
-        FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE
-      );
-    `);
+
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS option (
