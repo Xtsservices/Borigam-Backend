@@ -33,7 +33,7 @@ const createUsersTable = async () => {
       start_date BIGINT NOT NULL,
       end_date BIGINT NOT NULL,
       status VARCHAR(50) NOT NULL DEFAULT 'active',
-      college_id INT REFERENCES college(id) ON DELETE CASCADE  -- nullable
+      college_id INT REFERENCES 
   ); `);
   
     await pool.query(`
