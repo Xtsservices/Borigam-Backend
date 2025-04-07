@@ -137,9 +137,9 @@ export const questionWithOptionsSchema = Joi.object({
         'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
     }),
 
-    subject_id: Joi.number().required().messages({
-        'number.base': 'subject ID must be a valid number',
-        'any.required': commonValidations.subject.required,
+    course_id: Joi.number().required().messages({
+        'number.base': 'Course ID must be a valid number',
+        'any.required': commonValidations.course.required,
     }),
 
     options: Joi.when('type', {
