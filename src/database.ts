@@ -222,7 +222,14 @@ await pool.query(`
       batch_id INT NOT NULL ,
       created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) -- store as Unix timestamp
     );
-     `);
+     
+    
+      ` 
+    );
+
+    // await pool.query(`ALTER TABLE question
+    //    ADD COLUMN image TEXT; ` 
+    //   );
 
   
     
