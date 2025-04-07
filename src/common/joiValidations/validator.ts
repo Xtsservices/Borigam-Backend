@@ -172,12 +172,13 @@ export const questionWithOptionsSchema = Joi.object({
 export const testWithQuestionsSchema = Joi.object({
     name: Joi.string().required(),
     duration: Joi.number().positive().required(),
-    subject_id: Joi.number().integer().positive().required(),
+    course_id: Joi.number().integer().positive().required(),
     start_date: Joi.string().required(), // Expecting "DD-MM-YYYY"
     end_date: Joi.string().required(),   // Expecting "DD-MM-YYYY"
     batch_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
     questions: Joi.array().items(Joi.number().integer().positive()).optional()
   });
+  
 
   export const collegeSchema = Joi.object({
     name: Joi.string().max(255).required().messages({

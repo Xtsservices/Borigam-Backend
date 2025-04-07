@@ -152,7 +152,39 @@ if ((subjectColCheck.rowCount ?? 0) > 0){
         UNIQUE (test_id, question_id)
       );
     `);
-
+    await pool.query(`
+      DO $$
+      BEGIN
+        -- Drop subject_id column if it exists
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='test' AND column_name='subject_id'
+        ) THEN
+          ALTER TABLE test
+          DROP COLUMN subject_id;
+        END IF;
+    
+        -- Add course_id column if it doesn't exist
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='test' AND column_name='course_id'
+        ) THEN
+          ALTER TABLE test
+          ADD COLUMN course_id INTEGER;
+        END IF;
+    
+        -- Add foreign key constraint on course_id if it doesn't exist
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints 
+          WHERE table_name='test' AND constraint_type='FOREIGN KEY' AND constraint_name='fk_course_test'
+        ) THEN
+          ALTER TABLE test
+          ADD CONSTRAINT fk_course_test
+          FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+    
  
 
 
