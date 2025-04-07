@@ -25,6 +25,35 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
+    
+    // Check if 'course_id' column exists and add if missing
+    const columnExists = await pool.query(`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'subject' AND column_name = 'course_id';
+    `);
+    
+    if (columnExists.rowCount === 0) {
+      // Add column
+      await pool.query(`
+        ALTER TABLE subject
+        ADD COLUMN course_id INTEGER;
+      `);
+    
+      // Add foreign key constraint
+      await pool.query(`
+        ALTER TABLE subject
+        ADD CONSTRAINT fk_course
+        FOREIGN KEY (course_id)
+        REFERENCES course(id)
+        ON DELETE CASCADE;
+      `);
+    
+      console.log("✅ 'course_id' column and foreign key constraint added.");
+    } else {
+      console.log("ℹ️ 'course_id' column already exists in 'subject' table.");
+    }
+    
    
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (

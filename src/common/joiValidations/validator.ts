@@ -115,7 +115,14 @@ const subjectSchema = Joi.object({
         .messages({
             'string.empty': commonValidations.subject.empty,
             'any.required': commonValidations.subject.required,
-        })
+        }),
+        course_id: Joi.number()
+            .integer()
+            .required()
+            .messages({
+                'number.base': commonValidations.course.invalid,
+                'any.required': commonValidations.course.required,
+            })
 });
 
 
