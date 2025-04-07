@@ -124,64 +124,59 @@ class common {
 
     };
 
-    async getTestsAssingedForStudent(studentId: any,batch_id:any) {
+    async getTestsAssingedForStudent(studentId: any, batchId: any) {
         try {
             const query = `
-            SELECT 
-                t.id AS test_id,
-                t.name AS test_name,
-                t.duration,
-                t.created_at,
-                t.start_date,
-                t.end_date,
-                s.id AS subject_id,
-                s.name AS subject_name,
-                tr.id AS result_id,
-                tr.total_questions,
-                tr.attempted,
-                tr.correct,
-                tr.wrong,
-                tr.final_score,
-                tr.final_result
-            FROM test_batches tb
-            INNER JOIN test t ON tb.test_id = t.id
-            LEFT JOIN subject s ON t.subject_id = s.id
-            LEFT JOIN test_results tr ON t.id = tr.test_id AND tr.user_id = $2
-            WHERE tb.batch_id = $1
-            ORDER BY t.created_at DESC;
-        `;
-
-        const allTests = await baseRepository.query(query, [batch_id, studentId]) as any[];
-
-        const currentTime = Math.floor(Date.now() / 1000); // current UNIX timestamp
-
-        let assignedTests = [];
-        let completdTests = [];
-        let openTest = [];
-        assignedTests=allTests;
-        for (const test of allTests) {
-            if (test.result_id) {
-                completdTests.push(test);
-            } else if (test.start_date <= currentTime && currentTime <= test.end_date) {
-                openTest.push(test);
-            } 
-        }
-
-        let tests = {
-            assignedTests,
-            completdTests,
-            openTest
-        };
-
-
-
+                SELECT 
+                    t.id AS test_id,
+                    t.name AS test_name,
+                    t.duration,
+                    t.created_at,
+                    t.start_date,
+                    t.end_date,
+                    c.id AS course_id,
+                    c.name AS course_name,
+                    tr.id AS result_id,
+                    tr.total_questions,
+                    tr.attempted,
+                    tr.correct,
+                    tr.wrong,
+                    tr.final_score,
+                    tr.final_result
+                FROM test_batches tb
+                INNER JOIN test t ON tb.test_id = t.id
+                LEFT JOIN course c ON t.course_id = c.id
+                LEFT JOIN test_results tr ON t.id = tr.test_id AND tr.user_id = $2
+                WHERE tb.batch_id = $1
+                ORDER BY t.created_at DESC;
+            `;
     
-            return tests;
+            const allTests = await baseRepository.query(query, [batchId, studentId]) as any[];
+    
+            const currentTime = Math.floor(Date.now() / 1000); // current UNIX timestamp
+    
+            const assignedTests: any[] = allTests;
+            const completdTests: any[] = [];
+            const openTests: any[] = [];
+    
+            for (const test of allTests) {
+                if (test.result_id) {
+                    completdTests.push(test);
+                } else if (test.start_date <= currentTime && currentTime <= test.end_date) {
+                    openTests.push(test);
+                }
+            }
+    
+            return {
+                assignedTests,
+                completdTests,
+                openTests
+            };
         } catch (err) {
             throw err;
         }
-
-    };
+    }
+    
 
 
 
