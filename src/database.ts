@@ -25,17 +25,7 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
-       await pool.query(`
-    CREATE TABLE IF NOT EXISTS batch (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
-      start_date BIGINT NOT NULL,
-      end_date BIGINT NOT NULL,
-      status VARCHAR(50) NOT NULL DEFAULT 'active',
-      college_id INT REFERENCES 
-  ); `);
-  
+   
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (
         id SERIAL PRIMARY KEY,
@@ -84,9 +74,7 @@ const createUsersTable = async () => {
       );
     `);
 
-    // await pool.query(`
-    //  ALTER TABLE test ADD COLUMN course_id INT  ;
-    // `);
+ 
 
 
     await pool.query(`
@@ -120,6 +108,18 @@ const createUsersTable = async () => {
     status SMALLINT NOT NULL
 );
     `);
+     await pool.query(`
+  CREATE TABLE IF NOT EXISTS batch (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+    start_date BIGINT NOT NULL,
+    end_date BIGINT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    college_id INT REFERENCES college(id) ON DELETE SET NULL
+  );
+`);
+  
 
 
     await pool.query(`
