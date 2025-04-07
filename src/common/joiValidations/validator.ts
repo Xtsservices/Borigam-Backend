@@ -1,10 +1,14 @@
 
 import Joi from 'joi';
+import moment from "moment";
+
 
 //import {JoiExtensionFile} from 'joi-extension-file';
 import { commonValidations } from '../../utils/constantValidations';
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9]{1}[A-Z]{1}[0-9]{1}$/;
+const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
+
 //const JoiExtended = Joi.extend(JoiExtensionFile);
 //joi for validation
 enum RoleName {
@@ -126,9 +130,9 @@ export const questionWithOptionsSchema = Joi.object({
         'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
     }),
 
-    course_id: Joi.number().required().messages({
-        'number.base': 'Course ID must be a valid number',
-        'any.required': commonValidations.course.required,
+    subject_id: Joi.number().required().messages({
+        'number.base': 'subject ID must be a valid number',
+        'any.required': commonValidations.subject.required,
     }),
 
     options: Joi.when('type', {
@@ -157,32 +161,25 @@ export const questionWithOptionsSchema = Joi.object({
 });
 
 
+
 export const testWithQuestionsSchema = Joi.object({
-    name: Joi.string().max(255).required().messages({
-      'string.base': `"name" should be a type of 'text'`,
-      'string.empty': `"name" cannot be an empty field`,
-      'any.required': `"name" is a required field`,
-    }),
-    course_id: Joi.number().integer().min(1).required().messages({
-        'number.base': `"course_id" should be a type of 'number'`,
-        'any.required': `"course_id" is a required field`,
-      }),
-    duration: Joi.number().integer().min(1).required().messages({
-      'number.base': `"duration" should be a type of 'number'`,
-      'number.min': `"duration" should be at least 1 minute`,
-      'any.required': `"duration" is a required field`,
-    }),
-    questions: Joi.array().items(Joi.number().integer()).min(1).required().messages({
-      'array.base': `"questions" should be an array`,
-      'array.min': `"questions" should contain at least 1 question`,
-      'any.required': `"questions" is a required field`,
-    }),
+    name: Joi.string().required(),
+    duration: Joi.number().positive().required(),
+    subject_id: Joi.number().integer().positive().required(),
+    start_date: Joi.string().required(), // Expecting "DD-MM-YYYY"
+    end_date: Joi.string().required(),   // Expecting "DD-MM-YYYY"
+    batch_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
+    questions: Joi.array().items(Joi.number().integer().positive()).optional()
   });
 
   export const collegeSchema = Joi.object({
     name: Joi.string().max(255).required().messages({
         'string.empty': commonValidations.collegeName.empty,
         'any.required': commonValidations.collegeName.required,
+    }),
+    code: Joi.string().max(255).required().messages({
+        'string.empty': commonValidations.collegeCode.empty,
+        'any.required': commonValidations.collegeCode.required,
     }),
     address: Joi.string().required().messages({
         'string.empty': commonValidations.address.empty,
@@ -232,38 +229,84 @@ const submitTestSchema = Joi.object({
     ).required()
 });
 
+
+
 export const assignStudentSchema = Joi.object({
-    studentId: Joi.number().integer().positive().required()
-        .messages({
-            "number.base": "Student ID must be a number",
-            "number.integer": "Student ID must be an integer",
-            "number.positive": "Student ID must be a positive number",
-            "any.required": "Student ID is required"
-        }),
+    studentId: Joi.number().integer().positive().required().messages({
+        "number.base": "Student ID must be a number",
+        "number.integer": "Student ID must be an integer",
+        "number.positive": "Student ID must be a positive number",
+        "any.required": "Student ID is required"
+    }),
 
-    courseId: Joi.number().integer().positive().required()
-        .messages({
-            "number.base": "Course ID must be a number",
-            "number.integer": "Course ID must be an integer",
-            "number.positive": "Course ID must be a positive number",
-            "any.required": "Course ID is required"
-        }),
+    courseId: Joi.number().integer().positive().required().messages({
+        "number.base": "Course ID must be a number",
+        "number.integer": "Course ID must be an integer",
+        "number.positive": "Course ID must be a positive number",
+        "any.required": "Course ID is required"
+    }),
 
-    startDate: Joi.date().iso().required()
-        .messages({
-            "date.base": "Start Date must be a valid date",
-            "date.format": "Start Date must be in ISO 8601 format (YYYY-MM-DD)",
-            "any.required": "Start Date is required"
-        }),
+    batchId: Joi.number().integer().positive().required().messages({
+        "number.base": "Batch ID must be a number",
+        "number.integer": "Batch ID must be an integer",
+        "number.positive": "Batch ID must be a positive number",
+        "any.required": "Batch ID is required"
+    }),
 
-    endDate: Joi.date().iso().greater(Joi.ref("startDate")).required()
-        .messages({
-            "date.base": "End Date must be a valid date",
-            "date.format": "End Date must be in ISO 8601 format (YYYY-MM-DD)",
-            "date.greater": "End Date must be greater than Start Date",
-            "any.required": "End Date is required"
-        })
+    // startDate: Joi.string()
+    //     .pattern(/^\d{2}-\d{2}-\d{4}$/)
+    //     .required()
+    //     .messages({
+    //         "string.pattern.base": "Start Date must be in DD-MM-YYYY format",
+    //         "any.required": "Start Date is required"
+    //     }),
+
+    // endDate: Joi.string()
+    //     .pattern(/^\d{2}-\d{2}-\d{4}$/)
+    //     .required()
+    //     .custom((value, helpers) => {
+    //         const { startDate } = helpers.state.ancestors[0];
+    //         const start = moment(startDate, "DD-MM-YYYY", true);
+    //         const end = moment(value, "DD-MM-YYYY", true);
+
+    //         if (!end.isValid()) {
+    //             return helpers.error("any.invalid", { message: "End Date must be in DD-MM-YYYY format" });
+    //         }
+
+    //         if (!start.isValid()) {
+    //             return helpers.error("any.invalid", { message: "Start Date is not valid" });
+    //         }
+
+    //         if (end.isSameOrBefore(start)) {
+    //             return helpers.error("any.invalid", { message: "End Date must be after Start Date" });
+    //         }
+
+    //         return value;
+    //     })
 });
+
+
+export const batchSchema= Joi.object({
+    name: Joi.string().required(),
+    course_id: Joi.number().required(),
+    start_date: Joi.string().pattern(dateRegex).required().messages({
+        'string.pattern.base': `"start_date" must be in DD-MM-YYYY format`,
+        'any.required': `"start_date" is a required field`,
+      }),
+    
+      end_date: Joi.string().pattern(dateRegex).required().messages({
+        'string.pattern.base': `"end_date" must be in DD-MM-YYYY format`,
+        'any.required': `"end_date" is a required field`,
+      }),
+    // college_id not needed from body — coming from token
+})
+
+export const testBatchSchema = Joi.object({
+    test_id: Joi.number().integer().positive().required(),
+    batch_id: Joi.number().integer().positive().required(),
+    created_at: Joi.number().required()
+  });
+
 
 
 export const joiSchema = {
@@ -276,7 +319,9 @@ export const joiSchema = {
     studentSchema,
     submitTestSchema,
     assignStudentSchema,
-    subjectSchema
+    subjectSchema,
+    batchSchema,
+    testBatchSchema
 
     
    

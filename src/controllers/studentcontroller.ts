@@ -16,6 +16,9 @@ import { PoolClient } from "pg";
 import { userSchema } from "../model/user";
 import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
+import moment from 'moment';
+
+
 
 
 
@@ -183,21 +186,38 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
 
     try {
         let query = `
-            SELECT 
-                u.id AS student_id, u.firstname, u.lastname, u.email, 
-                u.countrycode, u.mobileno, u.status, 
-                cs.college_id, c.name AS college_name,
-                COALESCE(json_agg(DISTINCT jsonb_build_object('course_id', co.id, 'course_name', co.name))
-                    FILTER (WHERE co.id IS NOT NULL), '[]') AS courses
-            FROM users u
-            JOIN user_roles ur ON u.id = ur.user_id
-            JOIN role r ON ur.role_id = r.id
-            LEFT JOIN college_students cs ON u.id = cs.user_id
-            LEFT JOIN college c ON cs.college_id = c.id
-            LEFT JOIN course_students cs2 ON u.id = cs2.student_id
-            LEFT JOIN course co ON cs2.course_id = co.id
-            WHERE r.name = $1
-        `;
+        SELECT 
+            u.id AS student_id, u.firstname, u.lastname, u.email, 
+            u.countrycode, u.mobileno, u.status, 
+            cs.college_id, c.name AS college_name,
+            
+            -- Courses
+            COALESCE(json_agg(DISTINCT jsonb_build_object(
+                'course_id', co.id,
+                'course_name', co.name
+            )) FILTER (WHERE co.id IS NOT NULL), '[]') AS courses,
+    
+            -- Batches
+            COALESCE(json_agg(DISTINCT jsonb_build_object(
+                'batch_id', b.id,
+                'batch_name', b.name,
+                'start_date', b.start_date,
+                'end_date', b.end_date
+            )) FILTER (WHERE b.id IS NOT NULL), '[]') AS batches
+    
+        FROM users u
+        JOIN user_roles ur ON u.id = ur.user_id
+        JOIN role r ON ur.role_id = r.id
+        LEFT JOIN college_students cs ON u.id = cs.user_id
+        LEFT JOIN college c ON cs.college_id = c.id
+        LEFT JOIN course_students cs2 ON u.id = cs2.student_id
+        LEFT JOIN course co ON cs2.course_id = co.id
+        LEFT JOIN batch b ON cs2.batch_id = b.id
+    
+        WHERE r.name = $1
+    `;
+    
+    
 
         const params = ["student"];
 
@@ -291,7 +311,7 @@ export const getUnassignedStudentsList = async (req: Request, res: Response, nex
                 u.mobileno, 
                 u.status, 
                 cs.college_id, 
-                COALESCE(c.name, 'Not Assigned') AS college_name
+                COALESCE(c.name, 'Not Applicable') AS college_name
             FROM users u
             JOIN user_roles ur ON u.id = ur.user_id
             JOIN role r ON ur.role_id = r.id
@@ -329,93 +349,131 @@ export const getUnassignedStudentsList = async (req: Request, res: Response, nex
 };
 
 
+
 export const assignStudentToCourse = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Assigning student to a course");
 
     const token = req.headers['token'];
     let details = await getdetailsfromtoken(token);
 
-    const client: PoolClient = await baseRepository.getClient(); // Use single transaction client
+    const client: PoolClient = await baseRepository.getClient();
 
     try {
-        await client.query("BEGIN"); // Start transaction
+        await client.query("BEGIN");
 
-        // Validate request body using Joi schema
         const { error } = joiSchema.assignStudentSchema.validate(req.body);
         if (error) {
             await client.query("ROLLBACK");
             return res.status(400).json({ error: error.details[0].message });
         }
 
-        const { studentId, courseId, startDate, endDate } = req.body;
+        const { studentId, courseId, batchId, startDate, endDate } = req.body;
 
-        // Check if the course exists
+        // Validate course
         const courseExists = await baseRepository.select(
             "course",
             { id: courseId },
             ['id'],
             client
         );
-
-        if (!courseExists || courseExists.length === 0) {
+        if (!courseExists?.length) {
             await client.query("ROLLBACK");
             return res.status(404).json({ error: "Course not found" });
         }
 
-        // Check if the student exists
+        // Validate student
         const studentExists = await baseRepository.select(
             "users",
             { id: studentId },
             ['id'],
             client
         );
-
-        if (!studentExists || studentExists.length === 0) {
+        if (!studentExists?.length) {
             await client.query("ROLLBACK");
             return res.status(404).json({ error: "Student not found" });
         }
 
-        // Check if the student is already assigned to the course
-        const existingAssignment = await baseRepository.select(
+        // Validate batch
+        const batchExists:any = await baseRepository.select(
+            "batch",
+            { id: batchId },
+            ['id', 'start_date', 'end_date'],
+            client
+        );
+        
+        if (!batchExists?.length) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Batch not found" });
+        }
+
+        // Prevent duplicate assignment
+        let existingAssignment = await baseRepository.select(
             "course_students",
-            { student_id: studentId, course_id: courseId },
+            { student_id: studentId, course_id: courseId, batch_id: batchId },
             ['id'],
             client
         );
-
         if (existingAssignment.length > 0) {
             await client.query("ROLLBACK");
-            return ResponseMessages.alreadyExist(res, "Student is already assigned to this course");
+            return ResponseMessages.alreadyExist(res, "Student is already assigned to this course and batch");
         }
 
-        // Assign student to course with start_date and end_date
-        const newAssignment:any = await baseRepository.insert(
+        // Convert start and end dates to UNIX (start/end of day)
+        const startUnix = batchExists[0]?.start_date
+        const endUnix = batchExists[0]?.end_date
+
+        // if (!moment(startDate, "DD-MM-YYYY").isValid() || !moment(endDate, "DD-MM-YYYY").isValid()) {
+        //     await client.query("ROLLBACK");
+        //     return res.status(400).json({ error: "Invalid date format. Use DD-MM-YYYY" });
+        // }
+
+        // if (endUnix <= startUnix) {
+        //     await client.query("ROLLBACK");
+        //     return res.status(400).json({ error: "End date must be after start date" });
+        // }
+
+        // Insert into course_students
+        console.log(  {
+            student_id: studentId,
+            course_id: courseId,
+            batch_id: batchId,
+            start_date: startUnix,
+            end_date: endUnix
+        },)
+        const newAssignment: any = await baseRepository.insert(
             "course_students",
-            { student_id: studentId, course_id: courseId, start_date: startDate, end_date: endDate },
+            {
+                student_id: studentId,
+                course_id: courseId,
+                batch_id: batchId,
+                start_date: startUnix,
+                end_date: endUnix
+            },
             courseStudentsSchema,
             client
         );
 
-        await client.query("COMMIT"); // Commit transaction
-        logger.info("Student assigned to course successfully");
+        await client.query("COMMIT");
 
-        // Respond with success and the assigned student details
+        logger.info("Student assigned to course successfully");
         return ResponseMessages.Response(res, "Student assigned to course successfully", {
             assignmentId: newAssignment.id,
             studentId,
             courseId,
-            startDate,
-            endDate
+            batchId,
+            startDate: startUnix,
+            endDate: endUnix
         });
 
     } catch (err) {
-        await client.query("ROLLBACK"); // Rollback on error
+        await client.query("ROLLBACK");
         logger.error("Error assigning student to course", err);
         return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     } finally {
-        client.release(); // Release client back to pool
+        client.release();
     }
 };
+
 
 
 

@@ -18,16 +18,36 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
-      await pool.query(`
-    CREATE TABLE subject (
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subject (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) UNIQUE NOT NULL,
+        status SMALLINT NOT NULL
+      );
+    `);
+       await pool.query(`
+    CREATE TABLE IF NOT EXISTS batch (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(255) UNIQUE NOT NULL,
-      status SMALLINT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
-   `);
+      name VARCHAR(255) NOT NULL,
+      course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+      start_date BIGINT NOT NULL,
+      end_date BIGINT NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'active',
+      college_id INT REFERENCES college(id) ON DELETE CASCADE  -- nullable
+  ); `);
   
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS question (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) CHECK (type IN ('radio', 'blank', 'multiple_choice', 'text')) NOT NULL,
+        status SMALLINT NOT NULL,
+        subject_id INT NOT NULL,
+        FOREIGN KEY (subject_id) REFERENCES subject(id) ON DELETE CASCADE
+      );
+    `);
+
+
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (
@@ -50,14 +70,16 @@ const createUsersTable = async () => {
       );
     `);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS test (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        duration INT NOT NULL,
-                course_id INT NOT NULL,
+     CREATE TABLE IF NOT EXISTS test (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    duration INT NOT NULL,
+    subject_id INT NOT NULL,
+    start_date BIGINT NOT NULL,  -- Unix timestamp
+    end_date BIGINT NOT NULL,    -- Unix timestamp
+    created_at BIGINT NOT NULL
+);
 
-        created_at TIMESTAMP DEFAULT NOW()
-      );
      
     
       CREATE TABLE IF NOT EXISTS test_questions (
@@ -87,6 +109,7 @@ const createUsersTable = async () => {
       CREATE TABLE IF NOT EXISTS college (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) UNIQUE NOT NULL,
+        code VARCHAR(255) UNIQUE NOT NULL,
         address TEXT NOT NULL,
         status SMALLINT NOT NULL
       );
@@ -101,7 +124,7 @@ const createUsersTable = async () => {
     lastname VARCHAR(100) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     countrycode VARCHAR(10) NOT NULL,
-    mobileno VARCHAR(20) NOT NULL,
+    mobileno VARCHAR(20) UNIQUE NOT NULL,
     status SMALLINT NOT NULL
 );
     `);
@@ -152,6 +175,8 @@ const createUsersTable = async () => {
             test_id INTEGER NOT NULL,
             question_id INTEGER NOT NULL,
             is_correct BOOLEAN NOT NULL,
+                option_id INTEGER REFERENCES option(id), -- Optional option reference
+
             submitted_at TIMESTAMP DEFAULT NOW(),
             UNIQUE (user_id, test_id, question_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -184,14 +209,32 @@ const createUsersTable = async () => {
           id SERIAL PRIMARY KEY,
           student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           course_id INT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+          batch_id INT NOT NULL REFERENCES batch(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          start_date DATE NOT NULL DEFAULT CURRENT_DATE,
-          end_date DATE
-
+          start_date BIGINT NOT NULL,
+          end_date BIGINT
       );
-  `);
-   
+    `);
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS test_batches (
+      id SERIAL PRIMARY KEY,
+      test_id INT NOT NULL ,
+      batch_id INT NOT NULL ,
+      created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) -- store as Unix timestamp
+    );
+     
+    
+      ` 
+    );
+
+    // await pool.query(`ALTER TABLE question
+    //    ADD COLUMN image TEXT; ` 
+    //   );
+
   
+    
+
+
 
 
 
