@@ -25,6 +25,35 @@ const createUsersTable = async () => {
         status SMALLINT NOT NULL
       );
     `);
+    
+    // Check if 'course_id' column exists and add if missing
+    const columnExists = await pool.query(`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'subject' AND column_name = 'course_id';
+    `);
+    
+    if (columnExists.rowCount === 0) {
+      // Add column
+      await pool.query(`
+        ALTER TABLE subject
+        ADD COLUMN course_id INTEGER;
+      `);
+    
+      // Add foreign key constraint
+      await pool.query(`
+        ALTER TABLE subject
+        ADD CONSTRAINT fk_course
+        FOREIGN KEY (course_id)
+        REFERENCES course(id)
+        ON DELETE CASCADE;
+      `);
+    
+      console.log("✅ 'course_id' column and foreign key constraint added.");
+    } else {
+      console.log("ℹ️ 'course_id' column already exists in 'subject' table.");
+    }
+    
    
     await pool.query(`
       CREATE TABLE IF NOT EXISTS question (
@@ -37,6 +66,56 @@ const createUsersTable = async () => {
         FOREIGN KEY (subject_id) REFERENCES subject(id) ON DELETE CASCADE
       );
     `);
+    // Check if column "course_id" exists in "question" table
+const columnCheck = await pool.query(`
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_name = 'question' AND column_name = 'course_id';
+`);
+
+// Check if foreign key constraint exists
+const constraintCheck = await pool.query(`
+  SELECT 1
+  FROM information_schema.table_constraints
+  WHERE table_name = 'question' AND constraint_name = 'fk_course_question';
+`);
+
+// If column does not exist, add it and constraint
+if (columnCheck.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE question
+    ADD COLUMN course_id INTEGER;
+  `);
+  console.log("✅ Added column 'course_id' to 'question' table.");
+}
+
+if (constraintCheck.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE question
+    ADD CONSTRAINT fk_course_question
+    FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE;
+  `);
+  console.log("✅ Added foreign key constraint 'fk_course_question'.");
+}
+
+// Drop subject_id and its constraint if still present
+const subjectColCheck = await pool.query(`
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_name = 'question' AND column_name = 'subject_id';
+`);
+
+if ((subjectColCheck.rowCount ?? 0) > 0){
+
+
+  await pool.query(`
+    ALTER TABLE question
+    DROP CONSTRAINT IF EXISTS question_subject_id_fkey,
+    DROP COLUMN subject_id;
+  `);
+  console.log("🗑️ Removed 'subject_id' column and constraint from 'question' table.");
+}
+
 
 
 
@@ -73,7 +152,39 @@ const createUsersTable = async () => {
         UNIQUE (test_id, question_id)
       );
     `);
-
+    await pool.query(`
+      DO $$
+      BEGIN
+        -- Drop subject_id column if it exists
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='test' AND column_name='subject_id'
+        ) THEN
+          ALTER TABLE test
+          DROP COLUMN subject_id;
+        END IF;
+    
+        -- Add course_id column if it doesn't exist
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='test' AND column_name='course_id'
+        ) THEN
+          ALTER TABLE test
+          ADD COLUMN course_id INTEGER;
+        END IF;
+    
+        -- Add foreign key constraint on course_id if it doesn't exist
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints 
+          WHERE table_name='test' AND constraint_type='FOREIGN KEY' AND constraint_name='fk_course_test'
+        ) THEN
+          ALTER TABLE test
+          ADD CONSTRAINT fk_course_test
+          FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+    
  
 
 

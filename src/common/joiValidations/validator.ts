@@ -115,7 +115,14 @@ const subjectSchema = Joi.object({
         .messages({
             'string.empty': commonValidations.subject.empty,
             'any.required': commonValidations.subject.required,
-        })
+        }),
+        course_id: Joi.number()
+            .integer()
+            .required()
+            .messages({
+                'number.base': commonValidations.course.invalid,
+                'any.required': commonValidations.course.required,
+            })
 });
 
 
@@ -130,9 +137,9 @@ export const questionWithOptionsSchema = Joi.object({
         'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
     }),
 
-    subject_id: Joi.number().required().messages({
-        'number.base': 'subject ID must be a valid number',
-        'any.required': commonValidations.subject.required,
+    course_id: Joi.number().required().messages({
+        'number.base': 'Course ID must be a valid number',
+        'any.required': commonValidations.course.required,
     }),
 
     options: Joi.when('type', {
@@ -165,12 +172,13 @@ export const questionWithOptionsSchema = Joi.object({
 export const testWithQuestionsSchema = Joi.object({
     name: Joi.string().required(),
     duration: Joi.number().positive().required(),
-    subject_id: Joi.number().integer().positive().required(),
+    course_id: Joi.number().integer().positive().required(),
     start_date: Joi.string().required(), // Expecting "DD-MM-YYYY"
     end_date: Joi.string().required(),   // Expecting "DD-MM-YYYY"
     batch_ids: Joi.array().items(Joi.number().integer().positive()).min(1).required(),
     questions: Joi.array().items(Joi.number().integer().positive()).optional()
   });
+  
 
   export const collegeSchema = Joi.object({
     name: Joi.string().max(255).required().messages({

@@ -15,6 +15,7 @@ import logger from "../logger/logger";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
 import { PoolClient } from "pg";
 import moment from 'moment';
+import pool from "../database";
 
 
 
@@ -87,12 +88,17 @@ export const createSubject = async (req: Request, res: Response, next: NextFunct
             return;
         }
 
-        const { name } = req.body;
-        let status = getStatus("active");
+        const { name, course_id } = req.body;
+        const status = getStatus("active");
+
+        const course = await baseRepository.findOne("course", { id: course_id });
+        if (!course) {
+            return ResponseMessages.noDataFound(res,  "Course not found");
+        }
 
         const newSubject: any = await baseRepository.insert(
             "subject",
-            { name, status },
+            { name, course_id, status },
             subjectSchema
         );
 
@@ -102,25 +108,32 @@ export const createSubject = async (req: Request, res: Response, next: NextFunct
     }
 };
 
-export const getSubjects = async (req: Request, res: Response) => {
+
+export const getSubjects = async (req: Request, res: Response): Promise<void> => {
     try {
-        const subjects: Subject[] = await baseRepository.findAll("subject"); // Explicitly define the type of users
+        const result = await pool.query(`
+            SELECT 
+                s.id,
+                s.name,
+                s.status,
+                s.course_id,
+                c.name AS course_name
+            FROM subject s
+            JOIN course c ON s.course_id = c.id
+        `);
 
-        if (subjects && subjects.length > 0) {
-            const modifiedSubject = subjects.map((subject: Subject) => ({
-                ...subject,  // Spread works since we now explicitly define the user as User type
-                status: getStatus(subject.status)  // Dynamically change the status field based on the user's actual status
-            }));
+        const subjects = result.rows.map((subject) => ({
+            ...subject,
+            status: getStatus(subject.status),
+        }));
 
-            res.json(modifiedSubject);
-        } else {
-            res.json([]);
-        }
+        res.json(subjects);
     } catch (error) {
-        console.log(error);
+        console.error("Error fetching subjects with course info:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 };
+
 
 
 export const createBatch = async (req: Request, res: Response, next: NextFunction) => {
