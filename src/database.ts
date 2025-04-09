@@ -8,22 +8,6 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function updateQuestionNameColumn() {
-  try {
-    await pool.query(`
-      ALTER TABLE question
-      ALTER COLUMN name TYPE VARCHAR(2000);
-    `);
-    console.log('✅ Column "name" in table "question" updated to VARCHAR(2000)');
-  } catch (err) {
-    console.error('❌ Error updating column:', err);
-  } finally {
-    await pool.end();
-  }
-}
-
-updateQuestionNameColumn();
-
 
 const createUsersTable = async () => {
   try {

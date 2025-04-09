@@ -1,7 +1,24 @@
 import { PoolClient } from 'pg';
 import pool from '../database';  // Assuming you have a database pool
 
+async function updateQuestionNameColumn() {
+  try {
+    await pool.query(`
+      ALTER TABLE question
+      ALTER COLUMN name TYPE VARCHAR(2000);
+    `);
+    console.log('✅ Column "name" in table "question" updated to VARCHAR(2000)');
+  } catch (err) {
+    console.error('❌ Error updating column:', err);
+  } finally {
+    await pool.end();
+  }
+}
+
+// updateQuestionNameColumn();
+
 class BaseRepository {
+  
   async upsert(
     table: string,
     keys: { user_id: any; test_id: any },
