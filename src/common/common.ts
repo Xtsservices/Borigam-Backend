@@ -160,8 +160,10 @@ class common {
             const openTests: any[] = [];
     
             for (const test of allTests) {
+                console.log(test.start_date,currentTime,test.end_date)
                 if (test.result_id) {
                     completdTests.push(test);
+
                 } else if (test.start_date <= currentTime && currentTime <= test.end_date) {
                     openTests.push(test);
                 }

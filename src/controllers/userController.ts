@@ -10,6 +10,7 @@ import { responseMessage } from "../utils/serverResponses";
 import logger from "../logger/logger";
 import { getStatus } from "../utils/constants";
 import { PoolClient } from "pg";
+import { getdetailsfromtoken } from "../common/tokenvalidator";
 
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   logger.info("Entered Into Create User");
@@ -134,5 +135,38 @@ export const loginUser = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+export const myprofile = async (req: Request, res: Response) => {
+  try {
+    const token = req.headers['token'];
+    const userDetails = await getdetailsfromtoken(token);
+
+    const query = `
+      SELECT u.*, r.name AS role
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      LEFT JOIN role r ON ur.role_id = r.id
+      WHERE u.id = $1
+    `;
+
+    const result = await baseRepository.query(query, [userDetails.id]);
+    let user:any = result[0];
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.status = getStatus(user.status);
+
+
+    res.json(user);
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+
 
 
