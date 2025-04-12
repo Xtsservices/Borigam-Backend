@@ -1,5 +1,5 @@
 import express from 'express';
-import {  createCourse,getCourses,createSubject,getSubjects,createBatch,viewAllBatches } from '../controllers/coursecontroller';
+import {  createCourse,getCourses,updateCourse,deleteCourse, createSubject,getSubjects,createBatch,viewAllBatches } from '../controllers/coursecontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
@@ -10,6 +10,13 @@ const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
 router.post('/createCourse',asyncHandler(validateToken), asyncHandler(createCourse));
 
 router.get('/getCourses',asyncHandler(validateToken), asyncHandler(getCourses));
+
+router.post('/updateCourse',asyncHandler(validateToken), asyncHandler(updateCourse));
+
+router.post('/updateCourse',asyncHandler(validateToken), asyncHandler(updateCourse));
+
+router.get('/deleteCourse',asyncHandler(validateToken), asyncHandler(deleteCourse));
+
 
 router.post('/createSubject',asyncHandler(validateToken), asyncHandler(createSubject));
 

@@ -108,6 +108,20 @@ const courseSchema = Joi.object({
             'any.required': commonValidations.course.required,
         }),
 });
+const updatecourseSchema = Joi.object({
+    name: Joi.string()
+        .required()
+        .messages({
+            'string.empty': commonValidations.course.empty,
+            'any.required': commonValidations.course.required,
+        }),
+        id: Joi.number()
+        .required()
+        .messages({
+            'string.empty': commonValidations.courseID.empty,
+            'any.required': commonValidations.courseID.required,
+        }),
+});
 
 const subjectSchema = Joi.object({
     name: Joi.string()
@@ -329,7 +343,8 @@ export const joiSchema = {
     assignStudentSchema,
     subjectSchema,
     batchSchema,
-    testBatchSchema
+    testBatchSchema,
+    updatecourseSchema
 
     
    

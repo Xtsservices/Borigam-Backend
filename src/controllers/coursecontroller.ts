@@ -78,6 +78,89 @@ export const getCourses = async (req: Request, res: Response) => {
     }
 };
 
+
+export const updateCourse = async (req: Request, res: Response, next: NextFunction) => {
+  logger.info("Entered Into update Course");
+
+  try {
+    const { error } = joiSchema.updatecourseSchema.validate(req.body);
+    if (error) {
+      next(error);
+      return;
+    }
+
+    const { id, name } = req.body;
+
+    // Check if the course exists
+    const existingCourse = await baseRepository.findOne("course", "id = $1", [id]);
+    if (!existingCourse) {
+      return ResponseMessages.noDataFound(res, "Course not found");
+    }
+
+    // Check if another course with the same name exists
+    const duplicateCourse = await baseRepository.findOne(
+      "course",
+      "name = $1 AND id != $2",
+      [name, id]
+    );
+
+    if (duplicateCourse) {
+      return ResponseMessages.alreadyExist(res, "Course name already exists");
+    }
+
+    // Proceed with update
+    const updatedCourse: any = await baseRepository.update(
+      "course",
+      "id = $1",
+      [id],
+      { name }
+    );
+
+    return ResponseMessages.Response(res, responseMessage.success, updatedCourse);
+  } catch (err) {
+    return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+  }
+};
+
+export const deleteCourse = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into delete Course");
+  
+    try {
+      const { id } = req.query;
+      if(id ==null || id ==undefined){
+        return ResponseMessages.invalidParameters(res, "Need CourseID");
+
+      }
+  
+      // Check if the course exists
+      const existingCourse :any = await baseRepository.findOne("course", "id = $1", [id]);
+      if (!existingCourse) {
+        return ResponseMessages.noDataFound(res, "Course not found");
+      }
+  
+      // Check if already deleted
+      if (existingCourse.status === 3) {
+        return ResponseMessages.alreadyExist(res, "Course is already deleted");
+      }
+  
+      // Soft-delete the course
+      const deletedCourse: any = await baseRepository.update(
+        "course",
+        "id = $1",
+        [id],
+        { status: 3 }
+      );
+  
+      return ResponseMessages.Response(res, "Course deleted successfully", deletedCourse);
+    } catch (err) {
+      return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+    }
+  };
+  
+
+  
+  
+
 export const createSubject = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into create Subject");
     try {

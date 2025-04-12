@@ -318,6 +318,12 @@ export const commonValidations = {
         invalid: 'Invalid role',
 
     },
+    courseID: {
+        required: "courseID is required",
+        empty: "courseID cannot be empty",
+        invalid: 'Invalid courseID',
+
+    },
     course: {
         required: "course is required",
         empty: "course cannot be empty",

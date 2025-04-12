@@ -9,14 +9,14 @@ export class ResponseMessages {
     async noDataFound(res: Response, message: string) {
         logger.info(message)
         return res.status(serverResponseCodes.NoData).json({
-            type: true,
+            type: false,
             message: message,
         })
     }
     async invalidParameters(res:Response, message: string){
         logger.info(message)
         return res.status(serverResponseCodes.Invalid_Parameters).json({
-            type: true,
+            type: false,
             message:message
         })
     }
