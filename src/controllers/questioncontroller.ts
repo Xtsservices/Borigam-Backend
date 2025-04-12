@@ -85,13 +85,60 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
 };
 
 
-export const getAllQuestions = async (req: Request, res: Response, next: NextFunction) => {
-    logger.info("Entered Into Get All Questions");
+export const deleteQuestion = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Delete Question");
+  
+    const client: PoolClient = await baseRepository.getClient();
+  
+    try {
+      await client.query("BEGIN");
+  
+      const { id } = req.query;
+  
+      if (!id) {
+        return res.status(400).json({ error: "Question ID is required" });
+      }
+  
+      // Check if the question exists and is not already deleted
+      const question:any = await baseRepository.findOne("question", "id = $1", [id], client);
+      if (!question) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Question not found" });
+      }
+  
+      if (Number(question.status) === getStatus("inactive")) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Question is already deleted" });
+      }
+  
+      // Update status to deleted
+      await baseRepository.update("question", "id = $1", [id], { status: getStatus("inactive") }, client);
+  
+      await client.query("COMMIT");
+  
+      logger.info(`Question with ID ${id} marked as deleted`);
+      return ResponseMessages.Response(res, "Question deleted successfully");
+  
+    } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Error deleting question:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+    } finally {
+      client.release();
+    }
+  };
+  
+
+
+  export const getAllQuestions = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Get All Active Questions");
 
     const client: PoolClient = await baseRepository.getClient();
 
     try {
         await client.query("BEGIN");
+
+        const status = getStatus("active")
 
         const query = `
             SELECT 
@@ -107,10 +154,12 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
                 o.is_correct
             FROM question q
             LEFT JOIN option o ON q.id = o.question_id
-            LEFT JOIN course c ON q.course_id = c.id;
+            LEFT JOIN course c ON q.course_id = c.id
+            WHERE q.status = $1
+            ORDER BY q.id, o.id;
         `;
 
-        const result = await client.query(query);
+        const result = await client.query(query, [status]);
         const questions = result.rows;
 
         await client.query("COMMIT");
@@ -119,7 +168,7 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
             return ResponseMessages.Response(res, responseMessage.no_data, {});
         }
 
-        // Group by question id
+        const noOptionTypes = ['blank', 'text'];
         const groupedQuestions = questions.reduce((acc: any[], item) => {
             let question = acc.find(q => q.id === item.id);
 
@@ -137,7 +186,7 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
                 acc.push(question);
             }
 
-            if (item.type !== 'blank' && item.type !== 'text' && item.option_id) {
+            if (!noOptionTypes.includes(item.type) && item.option_id) {
                 question.options.push({
                     option_id: item.option_id,
                     option_text: item.option_text,
@@ -151,12 +200,13 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
         return ResponseMessages.Response(res, responseMessage.success, groupedQuestions);
     } catch (err) {
         await client.query("ROLLBACK");
-        logger.error("Error fetching questions:", err);
+        logger.error("Error fetching active questions:", err);
         return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
     } finally {
         client.release();
     }
 };
+
 
 
 
