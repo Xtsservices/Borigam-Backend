@@ -60,23 +60,27 @@ interface Subject {
 
 export const getCourses = async (req: Request, res: Response) => {
     try {
-        const courses: Course[] = await baseRepository.findAll("course"); // Explicitly define the type of users
-
-        if (courses && courses.length > 0) {
-            const modifiedCourse = courses.map((course: Course) => ({
-                ...course,  // Spread works since we now explicitly define the user as User type
-                status: getStatus(course.status)  // Dynamically change the status field based on the user's actual status
-            }));
-
-            res.json(modifiedCourse);
-        } else {
-            res.json([]);
-        }
+      // Only get courses where status = 1 (active)
+      let status =getStatus("active")
+      const courses: Course[] = await baseRepository.findAll("course", { status: status });
+  
+      if (courses && courses.length > 0) {
+        const modifiedCourse = courses.map((course: Course) => ({
+          ...course,
+          status: getStatus(course.status), // Optional transformation if needed
+        }));
+  
+        res.json(modifiedCourse);
+      } else {
+        res.json([]);
+      }
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: "Internal server error" });
+      console.error(error);
+      res.status(500).json({ error: "Internal server error" });
     }
-};
+  };
+  
+  
 
 
 export const updateCourse = async (req: Request, res: Response, next: NextFunction) => {
@@ -313,74 +317,69 @@ export const createBatch = async (req: Request, res: Response, next: NextFunctio
 
 export const viewAllBatches = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into View All Batches");
-
+  
     const token = req.headers['token'];
     const details = await getdetailsfromtoken(token);
     const college_id = details.college_id;
-    console.log("college_id from token:", college_id);
-
+  
     const client: PoolClient = await baseRepository.getClient();
-
+  
     try {
-        await client.query("BEGIN");
-
-        // Dynamic condition based on whether college_id is null
-        const query = `
-            SELECT 
-                b.id AS batch_id,
-                b.name,
-                b.course_id,
-                c.name AS course_name,
-                b.college_id,
-                clg.name AS college_name,
-                b.start_date,
-                b.end_date,
-                b.status
-            FROM batch b
-            LEFT JOIN course c ON b.course_id = c.id
-            LEFT JOIN college clg ON b.college_id = clg.id
-            WHERE 
-                ($1::int IS NULL AND b.college_id IS NULL)
-                OR
-                ($1::int IS NOT NULL AND b.college_id = $1)
-            ORDER BY b.id DESC;
-        `;
-
-        const result = await client.query(query, [college_id]);
-
-        await client.query("COMMIT");
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "No batches found" });
-        }
-        console.log(result.rows)
-
-        const modifiedBatches = result.rows.map((batch) => {
-            const originalStatus = batch.status;
-            const readableStatus = getStatus(Number(originalStatus));
-            
-            
-            return {
-              ...batch,
-              status: readableStatus
-            };
-          });
-          
-      
-      
-
-        logger.info(`Retrieved ${result.rows.length} batches with college details`);
-
-        return ResponseMessages.Response(res, "Batches retrieved successfully", modifiedBatches);
-
+      await client.query("BEGIN");
+  
+      // Get numeric value of "active" status
+      const status = getStatus("active").toString(); // Make sure this returns a number like 1
+  
+      const query = `
+        SELECT 
+          b.id AS batch_id,
+          b.name,
+          b.course_id,
+          c.name AS course_name,
+          b.college_id,
+          clg.name AS college_name,
+          b.start_date,
+          b.end_date,
+          b.status
+        FROM batch b
+        LEFT JOIN course c ON b.course_id = c.id
+        LEFT JOIN college clg ON b.college_id = clg.id
+        WHERE 
+          (
+            ($1::int IS NULL AND b.college_id IS NULL) OR 
+            ($1::int IS NOT NULL AND b.college_id = $1)
+          )
+          AND b.status = $2
+        ORDER BY b.id DESC;
+      `;
+      const result = await client.query(query, [college_id, status]);
+  
+      await client.query("COMMIT");
+  
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "No active batches found" });
+      }
+  
+      const modifiedBatches = result.rows.map((batch) => ({
+        ...batch,
+        status: getStatus(Number(batch.status)) // Convert number to label, e.g., 1 → "Active"
+      }));
+  
+      logger.info(`Retrieved ${result.rows.length} active batches with college details`);
+  
+      return ResponseMessages.Response(res, "Batches retrieved successfully", modifiedBatches);
+  
     } catch (err) {
-        await client.query("ROLLBACK");
-        logger.error("Error retrieving batches:", err);
-        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+      await client.query("ROLLBACK");
+      logger.error("Error retrieving batches:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     } finally {
-        client.release();
+      client.release();
     }
-};
+  };
+  
+  
+  
 
 export const updateBatch = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Update Batch");
