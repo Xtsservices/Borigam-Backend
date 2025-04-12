@@ -10,7 +10,7 @@ const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
 router.get('/user', asyncHandler(getUsers));
 router.post('/createUser', asyncHandler(createUser));
 router.post('/login', asyncHandler(loginUser));
-router.post('/myprofile',asyncHandler(validateToken), asyncHandler(myprofile));
+router.get('/myprofile',asyncHandler(validateToken), asyncHandler(myprofile));
 
 
 export default router;
