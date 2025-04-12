@@ -353,10 +353,25 @@ export const viewAllBatches = async (req: Request, res: Response, next: NextFunc
         if (result.rows.length === 0) {
             return res.status(404).json({ message: "No batches found" });
         }
+        console.log(result.rows)
+
+        const modifiedBatches = result.rows.map((batch) => {
+            const originalStatus = batch.status;
+            const readableStatus = getStatus(Number(originalStatus));
+            
+            
+            return {
+              ...batch,
+              status: readableStatus
+            };
+          });
+          
+      
+      
 
         logger.info(`Retrieved ${result.rows.length} batches with college details`);
 
-        return ResponseMessages.Response(res, "Batches retrieved successfully", result.rows);
+        return ResponseMessages.Response(res, "Batches retrieved successfully", modifiedBatches);
 
     } catch (err) {
         await client.query("ROLLBACK");
@@ -366,6 +381,148 @@ export const viewAllBatches = async (req: Request, res: Response, next: NextFunc
         client.release();
     }
 };
+
+export const updateBatch = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Update Batch");
+  
+    const token = req.headers['token'];
+    const details = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient();
+  
+    try {
+      await client.query("BEGIN");
+  
+      const { error } = joiSchema.updateBatchSchema.validate(req.body); // course_id not allowed here
+      if (error) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: error.details[0].message });
+      }
+  
+      const { id, name, start_date, end_date } = req.body;
+  
+      // Check if batch exists and is not deleted
+      const batchCheck = await client.query(
+        "SELECT id, status FROM batch WHERE id = $1",
+        [id]
+      );
+  
+      if (batchCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Batch not found" });
+      }
+  
+      const existingBatch = batchCheck.rows[0];
+      if (existingBatch.status === "3") {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Cannot update a deleted batch" });
+      }
+  
+      const updateData: any = { name };
+  
+      if (start_date) {
+        const startMoment = moment(start_date, "DD-MM-YYYY");
+        if (!startMoment.isValid()) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Invalid start_date format. Use DD-MM-YYYY." });
+        }
+        updateData.start_date = startMoment.startOf("day").unix();
+      }
+  
+      if (end_date) {
+        const endMoment = moment(end_date, "DD-MM-YYYY");
+        if (!endMoment.isValid()) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Invalid end_date format. Use DD-MM-YYYY." });
+        }
+        updateData.end_date = endMoment.endOf("day").unix();
+      }
+  
+      if (updateData.start_date && updateData.end_date) {
+        if (updateData.end_date <= updateData.start_date) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "End date must be after start date." });
+        }
+      }
+  
+      const updatedBatch = await baseRepository.update(
+        "batch",
+        "id = $1",
+        [id],
+        updateData,
+        client
+      );
+  
+      await client.query("COMMIT");
+      logger.info(`Batch with ID ${id} updated successfully`);
+  
+      return ResponseMessages.Response(res, "Batch updated successfully");
+  
+    } catch (err) {
+      await client.query("ROLLBACK");
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+      client.release();
+    }
+  };
+  
+
+  export const deleteBatch = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Delete Batch");
+  
+    const token = req.headers['token'];
+    const details = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient();
+  
+    try {
+      await client.query("BEGIN");
+  
+      const { id } = req.query;
+  
+      if (!id) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Batch ID is required" });
+      }
+  
+      // Check if batch exists and is not already deleted
+      const existingBatch = await client.query(
+        "SELECT id, status FROM batch WHERE id = $1",
+        [id]
+      );
+  
+      if (existingBatch.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Batch not found" });
+      }
+  
+      const batch = existingBatch.rows[0];
+      if (batch.status === "3") {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Batch already deleted" });
+      }
+  
+      // Soft delete the batch by setting status = 3
+      await baseRepository.update(
+        "batch",
+        "id = $1",
+        [id],
+        { status: 3 },
+        client
+      );
+  
+      await client.query("COMMIT");
+      logger.info(`Batch with ID ${id} marked as deleted`);
+  
+      return ResponseMessages.Response(res, "Batch deleted successfully");
+  
+    } catch (err) {
+      await client.query("ROLLBACK");
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+      client.release();
+    }
+  };
+  
+  
 
 
 

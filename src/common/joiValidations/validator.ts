@@ -329,6 +329,14 @@ export const testBatchSchema = Joi.object({
     created_at: Joi.number().required()
   });
 
+  const updateBatchSchema = Joi.object({
+    id: Joi.number().required(),
+    name: Joi.string().required(),
+    start_date: Joi.string().optional(), // Format: DD-MM-YYYY
+    end_date: Joi.string().optional()
+  });
+  
+
 
 
 export const joiSchema = {
@@ -344,7 +352,8 @@ export const joiSchema = {
     subjectSchema,
     batchSchema,
     testBatchSchema,
-    updatecourseSchema
+    updatecourseSchema,
+    updateBatchSchema
 
     
    
