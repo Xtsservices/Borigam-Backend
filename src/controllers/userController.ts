@@ -111,46 +111,46 @@ export const getUsers = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const user: any = await baseRepository.findOne("users", "email = $1", [
-      email,
-    ]);
+
+    const user: any = await baseRepository.findOne("users", "email = $1", [email]);
     if (!user) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
+
     const loginData: any = await baseRepository.findOne(
       "login",
       "user_id = $1",
       [user.id]
     );
-    let matachPassword = await common.comparePassword(
-      password,
-      loginData.password
-    );
-    if (!loginData || !matachPassword) {
+
+    const matchPassword = await common.comparePassword(password, loginData?.password);
+    if (!loginData || !matchPassword) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
-    let token = await common.generatetoken(user.id);
-    res.json({ token });
+
+    const token = await common.generatetoken(user.id);
+
+   
+
+    let profile:any = await common.profile(user.id)
+    profile =profile[0]
+    profile.status = getStatus(profile.status);
+
+    res.json({ token, profile });
   } catch (error) {
+    console.error("Login error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 export const myprofile = async (req: Request, res: Response) => {
   try {
     const token = req.headers['token'];
     const userDetails = await getdetailsfromtoken(token);
 
-    const query = `
-      SELECT u.*, r.name AS role
-      FROM users u
-      LEFT JOIN user_roles ur ON u.id = ur.user_id
-      LEFT JOIN role r ON ur.role_id = r.id
-      WHERE u.id = $1
-    `;
-
-    const result = await baseRepository.query(query, [userDetails.id]);
-    let user:any = result[0];
+    let user:any = await common.profile(userDetails.id)
+    user =user[0]
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
