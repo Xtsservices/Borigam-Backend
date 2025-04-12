@@ -207,6 +207,90 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
     }
 };
 
+export const getQuestionsByCourseId = async (req: Request, res: Response, next: NextFunction) => {
+  logger.info("Entered Into Get Questions by Course ID");
+
+  const client: PoolClient = await baseRepository.getClient();
+
+  try {
+      let courseId:any = req.query.id; // assuming course_id is passed as route param
+
+      if (isNaN(courseId)) {
+          return ResponseMessages.invalidParameters(res, "Course ID Is required");
+      }
+
+      await client.query("BEGIN");
+
+      const status = getStatus("active");
+
+      const query = `
+          SELECT 
+              q.id, 
+              q.name, 
+              q.type, 
+              q.status, 
+              q.image,
+              c.id AS course_id, 
+              c.name AS course_name, 
+              o.id AS option_id, 
+              o.option_text, 
+              o.is_correct
+          FROM question q
+          LEFT JOIN option o ON q.id = o.question_id
+          LEFT JOIN course c ON q.course_id = c.id
+          WHERE q.status = $1 AND q.course_id = $2
+          ORDER BY q.id, o.id;
+      `;
+
+      const result = await client.query(query, [status, courseId]);
+      const questions = result.rows;
+
+      await client.query("COMMIT");
+
+      if (questions.length === 0) {
+          return ResponseMessages.noDataFound(res, responseMessage.no_data);
+      }
+
+      const noOptionTypes = ['blank', 'text'];
+      const groupedQuestions = questions.reduce((acc: any[], item) => {
+          let question = acc.find(q => q.id === item.id);
+
+          if (!question) {
+              question = {
+                  id: item.id,
+                  name: item.name,
+                  type: item.type,
+                  status: getStatus(item.status),
+                  course_id: item.course_id,
+                  course_name: item.course_name,
+                  image: item.image,
+                  options: []
+              };
+              acc.push(question);
+          }
+
+          if (!noOptionTypes.includes(item.type) && item.option_id) {
+              question.options.push({
+                  option_id: item.option_id,
+                  option_text: item.option_text,
+                  is_correct: item.is_correct
+              });
+          }
+
+          return acc;
+      }, []);
+
+      return ResponseMessages.Response(res, responseMessage.success, groupedQuestions);
+  } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Error fetching questions by course ID:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+  } finally {
+      client.release();
+  }
+};
+
+
 
 
 

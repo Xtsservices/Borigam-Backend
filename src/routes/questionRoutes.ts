@@ -1,5 +1,5 @@
 import express from 'express';
-import {  createQuestion,getAllQuestions,deleteQuestion,createTest,viewAllTests,viewTestById } from '../controllers/questioncontroller';
+import {  createQuestion,getAllQuestions,deleteQuestion,getQuestionsByCourseId,createTest,viewAllTests,viewTestById } from '../controllers/questioncontroller';
 import { validateToken } from '../common/tokenvalidator';
 import { upload } from "../middlewares/uploadToS3";
 
@@ -10,6 +10,8 @@ const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
 
 router.post('/createQuestion',asyncHandler(validateToken), upload.single("image"), asyncHandler(createQuestion));
 router.get('/getAllQuestions',asyncHandler(validateToken), asyncHandler(getAllQuestions));
+router.get('/getQuestionsByCourseId',asyncHandler(validateToken), asyncHandler(getQuestionsByCourseId));
+
 router.get('/deleteQuestion',asyncHandler(validateToken), asyncHandler(deleteQuestion));
 
 
