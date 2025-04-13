@@ -53,18 +53,33 @@ interface MulterS3File extends Express.Multer.File {
           error: "Negative marks cannot be greater than total marks",
         });
       }
-      if (total_marks <= 0 || negative_marks <= 0) {
+      if (total_marks <= 0 ) {
         await client.query("ROLLBACK");
         return res.status(400).json({
           error: "Total marks and negative marks must be greater than 0",
         });
       }
+      if ( negative_marks < 0 ) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: " negative marks must be greater than 0 or 0",
+        });
+      }
+    
+      
+
       
   
       // Handle file uploads (question image and option images)
-      const files = req.files as { [fieldname: string]: MulterS3File[] };
-      const questionImage = files["image"]?.[0]?.location || null;
-      const optionImages = files["optionImages"] || [];
+      let questionImage;
+      let optionImages:any=[]
+      if(req.files){
+        const files = req.files as { [fieldname: string]: MulterS3File[] };
+         questionImage = files["image"]?.[0]?.location || null;
+         optionImages = files["optionImages"] || [];
+
+      }
+   
      
 
   
