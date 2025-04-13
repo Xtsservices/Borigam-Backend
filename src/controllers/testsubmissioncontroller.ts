@@ -201,6 +201,101 @@ export const startTest = async (req: Request, res: Response, next: NextFunction)
     }
 };
 
+export const setQuestionStatusUnanswered = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Set Question Status as Unanswered");
+
+    const { test_id, question_id } = req.query; // Assuming the test_id and question_id are passed in the body
+    const token = req.headers['token'];
+    const userDetails = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Check if the test exists
+        const test = await baseRepository.select("test", { id: test_id }, ['id'], client);
+        if (test.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Test not found" });
+        }
+
+        // Fetch question details along with options (excluding is_correct and including images)
+        const questionQuery = `
+            SELECT 
+                q.id AS question_id,
+                q.name AS question_name,
+                q.type AS question_type,
+                q.image AS question_image,  -- Include question image
+                o.id AS option_id,
+                o.option_text,
+                o.image AS option_image
+            FROM question q
+            LEFT JOIN option o ON o.question_id = q.id
+            WHERE q.id = $1;
+        `;
+        const questionResult = await client.query(questionQuery, [question_id]);
+        const question = questionResult.rows;
+
+        if (question.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Question not found" });
+        }
+
+        // Group the options by question
+        const groupedOptions = question.reduce((acc: any, row) => {
+            const { option_id, option_text, option_image } = row;
+
+            if (!acc.options) {
+                acc.options = [];
+            }
+
+            if (option_id) {
+                acc.options.push({
+                    id: option_id,
+                    option_text,
+                    option_image // Including option image if available
+                });
+            }
+
+            return acc;
+        }, {});
+
+        // Update the status of the specific question for the user to "unanswered"
+        await client.query(`
+            UPDATE test_submissions
+            SET status = 'unanswered'
+            WHERE test_id = $1 AND user_id = $2 AND question_id = $3
+        `, [test_id, userDetails.id, question_id]);
+
+        await client.query("COMMIT");
+
+        return res.status(200).json({
+            message: "Question status updated to 'unanswered'",
+            test_id,
+            question_id,
+            question: {
+                id: question[0].question_id,
+                name: question[0].question_name,
+                type: question[0].question_type,
+                image: question[0].question_image, // Include question image
+                options: groupedOptions.options
+            }
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error in setQuestionStatusUnanswered:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    } finally {
+        client.release();
+    }
+};
+
+
+
+
+
+
 
 export const submitTest = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Submit Test");
