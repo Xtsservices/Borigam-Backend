@@ -9,6 +9,7 @@ import logger from "../logger/logger";
 import { PoolClient } from "pg";
 import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
+import moment from "moment";
 interface TestResult {
     user_id: number;
     test_id: number;
@@ -97,11 +98,14 @@ export const startTest = async (req: Request, res: Response, next: NextFunction)
   
       // Insert empty test submissions with "open" status
       const questionIds = [...new Set(rows.map(row => row.question_id))];
+
       const submissionInserts = questionIds.map(qId => ({
         user_id: userDetails.id,
         test_id,
         question_id: qId,
-        status: 'open'
+        status: 'open',
+        is_correct: false, // <== important!
+
       }));
   
       await baseRepository.insertMultiple("test_submissions", submissionInserts, {
@@ -116,8 +120,7 @@ export const startTest = async (req: Request, res: Response, next: NextFunction)
         "test_results",
         { user_id: userDetails.id, test_id },
         {
-            start_time: new Date(),
-            status: "open"
+            start_time: moment().unix(),
           } as any,
         client
       );
@@ -139,6 +142,65 @@ export const startTest = async (req: Request, res: Response, next: NextFunction)
     }
   };
   
+
+  export const getTestSubmissions = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Get Test Submissions");
+
+    const { test_id } = req.query; // Assuming the test_id is passed as a query parameter
+    const token = req.headers['token'];
+    const userDetails = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        // Check if the test exists
+        const test = await baseRepository.select("test", { id: test_id }, ['id'], client);
+        if (test.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Test not found" });
+        }
+
+        // Get all submissions for this test and user
+        const submissionQuery = `
+            SELECT 
+                ts.id AS submission_id,
+                ts.user_id,
+                ts.test_id,
+                ts.question_id,
+                ts.status AS submission_status,
+                ts.is_correct,
+                q.name AS question_name
+            FROM test_submissions ts
+            JOIN question q ON ts.question_id = q.id
+            WHERE ts.test_id = $1 AND ts.user_id = $2
+            ORDER BY ts.question_id;
+        `;
+        
+        const result = await client.query(submissionQuery, [test_id, userDetails.id]);
+        const submissions = result.rows;
+
+        if (submissions.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "No submissions found for this test." });
+        }
+
+        await client.query("COMMIT");
+
+        return res.status(200).json({
+            message: "Test submissions fetched successfully",
+            submissions
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error in getTestSubmissions:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    } finally {
+        client.release();
+    }
+};
+
 
 export const submitTest = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Submit Test");

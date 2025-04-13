@@ -416,6 +416,84 @@ CREATE TABLE IF NOT EXISTS test_batches (
   ` 
 );
 
+const checkStatusColumn = await pool.query(`
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_name = 'test_submissions' AND column_name = 'status';
+`);
+
+if (checkStatusColumn.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE test_submissions
+    ADD COLUMN status VARCHAR(20) DEFAULT 'open';
+  `);
+  console.log("✅ Added 'status' column to 'test_submissions' table.");
+}
+
+const checkStartTimeColumn = await pool.query(`
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_name = 'test_results' AND column_name = 'start_time';
+`);
+
+if (checkStartTimeColumn.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE test_results
+    ADD COLUMN start_time BIGINT;
+  `);
+  console.log("✅ Added 'start_time' column to 'test_results' table.");
+}
+
+const columnTypeCheck = await pool.query(`
+  SELECT data_type
+  FROM information_schema.columns
+  WHERE table_name = 'test_results' AND column_name = 'start_time';
+`);
+
+if (
+  columnTypeCheck.rows.length > 0 &&
+  columnTypeCheck.rows[0].data_type !== 'bigint'
+) {
+  // Convert timestamp to epoch (UNIX timestamp) and change column type to BIGINT
+  await pool.query(`
+    ALTER TABLE test_results
+    ALTER COLUMN start_time TYPE BIGINT USING EXTRACT(EPOCH FROM start_time)::BIGINT;
+  `);
+}
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN total_questions DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN attempted DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN correct DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN wrong DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN final_score DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN final_result DROP NOT NULL;
+`);
+
+
+
+
     // Your other table creation queries here...
   } catch (error) {
     console.error("Error creating users table:", error);
@@ -424,6 +502,8 @@ CREATE TABLE IF NOT EXISTS test_batches (
 
 // Ensure the table is created on startup
 createUsersTable();
+
+
 
 pool.on("connect", () => {
   console.log("Connected to the database");
