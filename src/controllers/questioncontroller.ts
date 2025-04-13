@@ -14,75 +14,108 @@ import ResponseMessages from "../common/responseMessages";
 import { responseMessage } from "../utils/serverResponses";
 import { PoolClient } from "pg";
 import moment from 'moment';
-
-
-export const createQuestion = async (req: Request, res: Response, next: NextFunction) => {
+interface MulterS3File extends Express.Multer.File {
+    location: string;
+  }
+  
+  export const createQuestion = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Create Question");
-
+  
     const client: PoolClient = await baseRepository.getClient();
-
+  
     try {
-        await client.query("BEGIN");
-
-        // Parse and normalize options
-        let noptions: any = req.body.options;
-        if (typeof noptions === "string") {
-            try {
-                noptions = JSON.parse(noptions);
-                req.body.options = noptions;
-            } catch (e) {
-                return res.status(400).json({ error: "Invalid options JSON format" });
-            }
+      await client.query("BEGIN");
+  
+      // Normalize options from string to array if necessary
+      let noptions: any = req.body.options;
+      if (typeof noptions === "string") {
+        try {
+          noptions = JSON.parse(noptions);
+          req.body.options = noptions;
+        } catch (e) {
+          return res.status(400).json({ error: "Invalid options JSON format" });
         }
-
-        // Validate request
-        const { error } = joiSchema.questionWithOptionsSchema.validate(req.body);
-        if (error) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: error.details[0].message });
-        }
-
-        const { name, type, course_id, options } = req.body;
-        const status = getStatus("active");
-        const image = req.file ? (req.file as any).location : null;
-
-        // Check if course exists
-        const courseData: any = await baseRepository.select("course", { id: course_id }, ["id"]);
-        if (!courseData || courseData.length === 0) {
-            await client.query("ROLLBACK");
-            return res.status(400).json({ error: "Course not found" });
-        }
-
-        // Insert question with course_id
-        const newQuestion: any = await baseRepository.insert(
-            "question",
-            { name, type, status, course_id, image },
-            questionSchema,
-            client
-        );
-
-        // Insert options
-        if (options && options.length > 0) {
-            const optionsData = options.map((opt: { option_text: string; is_correct: any }) => ({
-                question_id: newQuestion.id,
-                option_text: opt.option_text,
-                is_correct: typeof opt.is_correct === "boolean" ? opt.is_correct : false,
-            }));
-
-            await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
-        }
-
-        await client.query("COMMIT");
-        logger.info("Question created successfully");
-        return ResponseMessages.Response(res, responseMessage.success, newQuestion);
-    } catch (err) {
+      }
+  
+      // Validate input using Joi schema
+      const { error } = joiSchema.questionWithOptionsSchema.validate(req.body);
+      if (error) {
         await client.query("ROLLBACK");
-        logger.error("Error creating question:", err);
-        return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
+        return res.status(400).json({ error: error.details[0].message });
+      }
+  
+      const { name, type, course_id, options, total_marks, negative_marks } = req.body;
+      const status = getStatus("active");
+
+      if (negative_marks >= total_marks) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Negative marks cannot be greater than total marks",
+        });
+      }
+      if (total_marks <= 0 || negative_marks <= 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Total marks and negative marks must be greater than 0",
+        });
+      }
+      
+  
+      // Handle file uploads (question image and option images)
+      const files = req.files as { [fieldname: string]: MulterS3File[] };
+      const questionImage = files["image"]?.[0]?.location || null;
+      const optionImages = files["optionImages"] || [];
+     
+
+  
+      // Check if course exists in the database
+      const courseData: any = await baseRepository.select("course", { id: course_id }, ["id"]);
+      if (!courseData || courseData.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Course not found" });
+      }
+  
+      // Insert the question into the database
+      const newQuestion: any = await baseRepository.insert(
+        "question",
+        {
+          name,
+          type,
+          status,
+          course_id,
+          image: questionImage,
+          total_marks,
+          negative_marks,
+        },
+        questionSchema,
+        client
+      );
+  
+      // Insert options into the database
+      if (options && options.length > 0) {
+        const optionsData = options.map((opt: any, index: number) => ({
+          question_id: newQuestion.id,
+          option_text: opt.option_text,
+          is_correct: typeof opt.is_correct === "boolean" ? opt.is_correct : false,
+          image: optionImages[index]?.location || null, // Option image if available
+        }));
+  
+        await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
+      }
+  
+      await client.query("COMMIT");
+      logger.info("Question created successfully");
+      return ResponseMessages.Response(res, responseMessage.success, newQuestion);
+  
+    } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Error creating question:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
     } finally {
-        client.release();
+      client.release();
     }
-};
+  };
+  
 
 
 export const deleteQuestion = async (req: Request, res: Response, next: NextFunction) => {
@@ -138,7 +171,7 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
     try {
         await client.query("BEGIN");
 
-        const status = getStatus("active")
+        const status = getStatus("active");
 
         const query = `
             SELECT 
@@ -147,11 +180,14 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
                 q.type, 
                 q.status, 
                 q.image,
+                q.total_marks,
+                q.negative_marks,
                 c.id AS course_id, 
                 c.name AS course_name, 
                 o.id AS option_id, 
                 o.option_text, 
-                o.is_correct
+                o.is_correct,
+                o.image AS option_image
             FROM question q
             LEFT JOIN option o ON q.id = o.question_id
             LEFT JOIN course c ON q.course_id = c.id
@@ -181,6 +217,8 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
                     course_id: item.course_id,
                     course_name: item.course_name,
                     image: item.image,
+                    total_marks: item.total_marks,
+                    negative_marks: item.negative_marks,
                     options: []
                 };
                 acc.push(question);
@@ -190,7 +228,8 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
                 question.options.push({
                     option_id: item.option_id,
                     option_text: item.option_text,
-                    is_correct: item.is_correct
+                    is_correct: item.is_correct,
+                    image: item.option_image
                 });
             }
 
@@ -207,89 +246,96 @@ export const deleteQuestion = async (req: Request, res: Response, next: NextFunc
     }
 };
 
+
 export const getQuestionsByCourseId = async (req: Request, res: Response, next: NextFunction) => {
-  logger.info("Entered Into Get Questions by Course ID");
-
-  const client: PoolClient = await baseRepository.getClient();
-
-  try {
-      let courseId:any = req.query.id; // assuming course_id is passed as route param
-
+    logger.info("Entered Into Get Questions by Course ID");
+  
+    const client: PoolClient = await baseRepository.getClient();
+  
+    try {
+      let courseId: any = req.query.id;
+  
       if (isNaN(courseId)) {
-          return ResponseMessages.invalidParameters(res, "Course ID Is required");
+        return ResponseMessages.invalidParameters(res, "Course ID is required");
       }
-
+  
       await client.query("BEGIN");
-
+  
       const status = getStatus("active");
-
+  
       const query = `
-          SELECT 
-              q.id, 
-              q.name, 
-              q.type, 
-              q.status, 
-              q.image,
-              c.id AS course_id, 
-              c.name AS course_name, 
-              o.id AS option_id, 
-              o.option_text, 
-              o.is_correct
-          FROM question q
-          LEFT JOIN option o ON q.id = o.question_id
-          LEFT JOIN course c ON q.course_id = c.id
-          WHERE q.status = $1 AND q.course_id = $2
-          ORDER BY q.id, o.id;
+        SELECT 
+          q.id, 
+          q.name, 
+          q.type, 
+          q.status, 
+          q.image,
+          q.total_marks,
+          q.negative_marks,
+          c.id AS course_id, 
+          c.name AS course_name, 
+          o.id AS option_id, 
+          o.option_text, 
+          o.is_correct,
+          o.image AS option_image
+        FROM question q
+        LEFT JOIN option o ON q.id = o.question_id
+        LEFT JOIN course c ON q.course_id = c.id
+        WHERE q.status = $1 AND q.course_id = $2
+        ORDER BY q.id, o.id;
       `;
-
+  
       const result = await client.query(query, [status, courseId]);
       const questions = result.rows;
-
+  
       await client.query("COMMIT");
-
+  
       if (questions.length === 0) {
-          return ResponseMessages.noDataFound(res, responseMessage.no_data);
+        return ResponseMessages.noDataFound(res, responseMessage.no_data);
       }
-
+  
       const noOptionTypes = ['blank', 'text'];
       const groupedQuestions = questions.reduce((acc: any[], item) => {
-          let question = acc.find(q => q.id === item.id);
-
-          if (!question) {
-              question = {
-                  id: item.id,
-                  name: item.name,
-                  type: item.type,
-                  status: getStatus(item.status),
-                  course_id: item.course_id,
-                  course_name: item.course_name,
-                  image: item.image,
-                  options: []
-              };
-              acc.push(question);
-          }
-
-          if (!noOptionTypes.includes(item.type) && item.option_id) {
-              question.options.push({
-                  option_id: item.option_id,
-                  option_text: item.option_text,
-                  is_correct: item.is_correct
-              });
-          }
-
-          return acc;
+        let question = acc.find(q => q.id === item.id);
+  
+        if (!question) {
+          question = {
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            status: getStatus(item.status),
+            course_id: item.course_id,
+            course_name: item.course_name,
+            image: item.image,
+            total_marks: item.total_marks,
+            negative_marks: item.negative_marks,
+            options: []
+          };
+          acc.push(question);
+        }
+  
+        if (!noOptionTypes.includes(item.type) && item.option_id) {
+          question.options.push({
+            option_id: item.option_id,
+            option_text: item.option_text,
+            is_correct: item.is_correct,
+            image: item.option_image
+          });
+        }
+  
+        return acc;
       }, []);
-
+  
       return ResponseMessages.Response(res, responseMessage.success, groupedQuestions);
-  } catch (err) {
+    } catch (err) {
       await client.query("ROLLBACK");
       logger.error("Error fetching questions by course ID:", err);
       return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
-  } finally {
+    } finally {
       client.release();
-  }
-};
-
+    }
+  };
+  
 
 
 
