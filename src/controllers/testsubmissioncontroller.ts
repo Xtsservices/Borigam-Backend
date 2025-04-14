@@ -168,9 +168,7 @@ export const startTest = async (req: Request, res: Response, next: NextFunction)
                 ts.user_id,
                 ts.test_id,
                 ts.question_id,
-                ts.status AS submission_status,
-                ts.is_correct,
-                q.name AS question_name
+                ts.status AS submission_status
             FROM test_submissions ts
             JOIN question q ON ts.question_id = q.id
             WHERE ts.test_id = $1 AND ts.user_id = $2
@@ -331,17 +329,6 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
                 continue;
             }
 
-            const existingSubmission = await baseRepository.select(
-                "test_submissions",
-                { user_id: userDetails.id, test_id, question_id },
-                ['id'],
-                client
-            );
-            if (existingSubmission.length > 0) {
-                results.push({ question_id, message: "This question has already been submitted." });
-                continue;
-            }
-
             const question: any = await baseRepository.select(
                 "question",
                 { id: question_id },
@@ -382,22 +369,42 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
                 user_id: userDetails.id,
                 test_id,
                 question_id,
-                is_correct: isCorrect
+                is_correct: isCorrect,
+                status:"answered"
             };
 
             if (option_id) {
                 submissionData.option_id = option_id;
             }
 
-            await baseRepository.insert(
+            const existingSubmission:any  = await baseRepository.select(
                 "test_submissions",
-                submissionData,
-                {},
+                { user_id: userDetails.id, test_id, question_id },
+                ['id'],
                 client
             );
 
-            results.push({ question_id, isCorrect });
-            newSubmissions++;
+            if (existingSubmission.length > 0) {
+                await baseRepository.update(
+                    "test_submissions",
+                    "user_id = $1 AND test_id = $2 AND question_id = $3",
+                    [userDetails.id, test_id, question_id],
+                    submissionData,
+                    client
+                );
+                
+                
+                results.push({ question_id, isCorrect, message: "Submission updated" });
+            } else {
+                await baseRepository.insert(
+                    "test_submissions",
+                    submissionData,
+                    {},
+                    client
+                );
+                results.push({ question_id, isCorrect, message: "New submission created" });
+                newSubmissions++;
+            }
         }
 
         const totalQuestions = await baseRepository.count("test_questions", { test_id }, client);
@@ -456,6 +463,7 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
         client.release();
     }
 };
+
 
 
 export const getTestResultById = async (req: Request, res: Response, next: NextFunction) => {
