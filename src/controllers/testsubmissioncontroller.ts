@@ -21,42 +21,49 @@ interface TestResult {
     final_result?: string;
     start_time?: Date;
     status?: string;
-  }
-  
+}
 
-  export const startTest = async (req: Request, res: Response, next: NextFunction) => {
+
+export const startTest = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Start Test");
-  
+
     const { test_id } = req.body;
     const token = req.headers['token'];
     const userDetails = await getdetailsfromtoken(token);
     const client: PoolClient = await baseRepository.getClient();
-  
+
     try {
-      await client.query("BEGIN");
-  
-      // Check if test exists
-      const test = await baseRepository.select("test", { id: test_id }, ['id', 'name', 'duration'], client);
-      if (test.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Test not found" });
-      }
-  
-      // Check if test_results already exists for this user
-      const existingResult = await baseRepository.select(
-        "test_results",
-        { user_id: userDetails.id, test_id },
-        ['id'],
-        client
-      );
-  
-      if (existingResult.length > 0) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "Test has already been started by this user." });
-      }
-  
-      // Get all test questions
-      const questionQuery = `
+        await client.query("BEGIN");
+
+        // Check if test exists
+        const test = await baseRepository.select("test", { id: test_id }, ['id', 'name', 'duration', "start_date", "end_date"], client);
+
+        if (test.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Test not found" });
+        }
+
+        let testcheck: any = await common.checkTestDates(test[0])
+        if (testcheck == "no") {
+            return res.status(400).json({ error: "Test Cant Start Now" });
+        }
+
+
+        // Check if test_results already exists for this user
+        const existingResult = await baseRepository.select(
+            "test_results",
+            { user_id: userDetails.id, test_id },
+            ['id'],
+            client
+        );
+
+        if (existingResult.length > 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Test has already been started by this user." });
+        }
+
+        // Get all test questions
+        const questionQuery = `
         SELECT 
           q.id AS question_id,
           q.name AS question_name,
@@ -73,91 +80,91 @@ interface TestResult {
         WHERE tq.test_id = $1
         ORDER BY q.id, o.id;
       `;
-      const result = await client.query(questionQuery, [test_id]);
-      const rows = result.rows;
-  
-      if (rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ message: "No questions found for this test." });
-      }
-  
-      // Group questions for response
-      const groupedQuestions = rows.reduce((acc: any[], row) => {
-        let question = acc.find(q => q.id === row.question_id);
-  
-        if (!question) {
-          question = {
-            id: row.question_id,
-            name: row.question_name,
-            type: row.type,
-            image: row.question_image,
-            total_marks: row.total_marks,
-            negative_marks: row.negative_marks,
-            options: []
-          };
-          acc.push(question);
-        }
-  
-        if (row.option_id) {
-          question.options.push({
-            id: row.option_id,
-            option_text: row.option_text,
-            image: row.option_image
-          });
-        }
-  
-        return acc;
-      }, []);
-  
-      // Insert empty test submissions with "open" status
-      const questionIds = [...new Set(rows.map(row => row.question_id))];
-      const submissionInserts = questionIds.map(qId => ({
-        user_id: userDetails.id,
-        test_id,
-        question_id: qId,
-        status: 'open',
-        is_correct: false,
-      }));
-  
-      await baseRepository.insertMultiple("test_submissions", submissionInserts, {
-        user_id: 'number',
-        test_id: 'number',
-        question_id: 'number',
-        status: 'string'
-      }, client);
-  
-      // Insert new test_results with start_time
-      await baseRepository.insert(
-        "test_results",
-        {
-          user_id: userDetails.id,
-          test_id,
-          start_time: moment().unix()
-        },
-        {},
-        client
-      );
-  
-      await client.query("COMMIT");
-  
-      return res.status(200).json({
-        message: "Test started successfully",
-        test_id,
-        questions: groupedQuestions
-      });
-  
-    } catch (err) {
-      await client.query("ROLLBACK");
-      logger.error("Error in startTest:", err);
-      return res.status(500).json({ error: "Internal server error", details: err });
-    } finally {
-      client.release();
-    }
-  };
-  
-  
+        const result = await client.query(questionQuery, [test_id]);
+        const rows = result.rows;
 
-  export const getTestSubmissions = async (req: Request, res: Response, next: NextFunction) => {
+        if (rows.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "No questions found for this test." });
+        }
+
+        // Group questions for response
+        const groupedQuestions = rows.reduce((acc: any[], row) => {
+            let question = acc.find(q => q.id === row.question_id);
+
+            if (!question) {
+                question = {
+                    id: row.question_id,
+                    name: row.question_name,
+                    type: row.type,
+                    image: row.question_image,
+                    total_marks: row.total_marks,
+                    negative_marks: row.negative_marks,
+                    options: []
+                };
+                acc.push(question);
+            }
+
+            if (row.option_id) {
+                question.options.push({
+                    id: row.option_id,
+                    option_text: row.option_text,
+                    image: row.option_image
+                });
+            }
+
+            return acc;
+        }, []);
+
+        // Insert empty test submissions with "open" status
+        const questionIds = [...new Set(rows.map(row => row.question_id))];
+        const submissionInserts = questionIds.map(qId => ({
+            user_id: userDetails.id,
+            test_id,
+            question_id: qId,
+            status: 'open',
+            is_correct: false,
+        }));
+
+        await baseRepository.insertMultiple("test_submissions", submissionInserts, {
+            user_id: 'number',
+            test_id: 'number',
+            question_id: 'number',
+            status: 'string'
+        }, client);
+
+        // Insert new test_results with start_time
+        await baseRepository.insert(
+            "test_results",
+            {
+                user_id: userDetails.id,
+                test_id,
+                start_time: moment().unix()
+            },
+            {},
+            client
+        );
+
+        await client.query("COMMIT");
+
+        return res.status(200).json({
+            message: "Test started successfully",
+            test_id,
+            questions: groupedQuestions
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error in startTest:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    } finally {
+        client.release();
+    }
+};
+
+
+
+export const getTestSubmissions = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Get Test Submissions");
 
     const { test_id } = req.query; // Assuming the test_id is passed as a query parameter
@@ -188,7 +195,7 @@ interface TestResult {
             WHERE ts.test_id = $1 AND ts.user_id = $2
             ORDER BY ts.question_id;
         `;
-        
+
         const result = await client.query(submissionQuery, [test_id, userDetails.id]);
         const submissions = result.rows;
 
@@ -247,7 +254,7 @@ export const setQuestionStatusUnanswered = async (req: Request, res: Response, n
         LEFT JOIN option o ON o.question_id = q.id
         WHERE q.id = $1;
       `;
-      
+
         const questionResult = await client.query(questionQuery, [question_id]);
         const question = questionResult.rows;
 
@@ -281,8 +288,8 @@ export const setQuestionStatusUnanswered = async (req: Request, res: Response, n
             SET status = 'unanswered'
             WHERE test_id = $1 AND user_id = $2 AND question_id = $3 AND status = 'open'
           `, [test_id, userDetails.id, question_id]);
-      
-        
+
+
         await client.query("COMMIT");
 
         return res.status(200).json({
@@ -326,6 +333,7 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
     const { test_id, answers } = req.body;
     const token = req.headers['token'];
     const userDetails = await getdetailsfromtoken(token);
+    let user_id = userDetails.id
     const client: PoolClient = await baseRepository.getClient();
 
     try {
@@ -333,6 +341,39 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
 
         let results = [];
         let finalSummary: any = null;
+
+
+        // Check if test exists
+        const test:any = await baseRepository.select("test", { id: test_id }, ['id', 'name', 'duration', "start_date", "end_date"], client);
+
+        if (test.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Test not found" });
+        }
+
+        let testcheck: any = await common.checkTestDates(test[0])
+        if (testcheck == "no") {
+            return res.status(400).json({ error: "Test Cant Start Now" });
+        }
+
+
+        const result:any = await baseRepository.select(
+            "test_results",
+            { user_id, test_id },
+            ['start_time']
+        );
+
+
+        if (result.length === 0) {
+            return res.status(400).json({ error: "Test Did not start" });
+        }
+
+        let continuesubmission= await common.checkendtime(test[0].duration,result[0].start_time)
+
+        if (continuesubmission == "no") {
+            return res.status(400).json({ error: "Test Submission Time is finished" });
+        }
+
 
         for (const answer of answers) {
             const { question_id, option_id, text } = answer;
@@ -577,12 +618,17 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
             };
         }
 
+        let pendingsubmission = await common.gettestStatus(test_id,user_id)
+        if(pendingsubmission && pendingsubmission.unanswered){
+
+        }
         await client.query("COMMIT");
 
         return res.status(200).json({
             message: "Questions submitted successfully",
             results,
-            finalSummary
+            pendingsubmission
+           // finalSummary
         });
 
     } catch (err) {
