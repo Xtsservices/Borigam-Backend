@@ -279,6 +279,8 @@ export const setQuestionStatusUnanswered = async (req: Request, res: Response, n
                 id: question[0].question_id,
                 name: question[0].question_name,
                 type: question[0].question_type,
+                total_marks: question[0].total_marks,
+                negative_marks: question[0].negative_marks,
                 image: question[0].question_image, // Include question image
                 options: groupedOptions.options
             }
