@@ -219,18 +219,21 @@ export const setQuestionStatusUnanswered = async (req: Request, res: Response, n
 
         // Fetch question details along with options (excluding is_correct and including images)
         const questionQuery = `
-            SELECT 
-                q.id AS question_id,
-                q.name AS question_name,
-                q.type AS question_type,
-                q.image AS question_image,  -- Include question image
-                o.id AS option_id,
-                o.option_text,
-                o.image AS option_image
-            FROM question q
-            LEFT JOIN option o ON o.question_id = q.id
-            WHERE q.id = $1;
-        `;
+        SELECT 
+          q.id AS question_id,
+          q.name AS question_name,
+          q.type AS question_type,
+          q.image AS question_image,
+          q.total_marks,
+          q.negative_marks,
+          o.id AS option_id,
+          o.option_text,
+          o.image AS option_image
+        FROM question q
+        LEFT JOIN option o ON o.question_id = q.id
+        WHERE q.id = $1;
+      `;
+      
         const questionResult = await client.query(questionQuery, [question_id]);
         const question = questionResult.rows;
 
@@ -259,12 +262,13 @@ export const setQuestionStatusUnanswered = async (req: Request, res: Response, n
         }, {});
 
         // Update the status of the specific question for the user to "unanswered"
-        await client.query(`
+        const updateResult = await client.query(`
             UPDATE test_submissions
             SET status = 'unanswered'
-            WHERE test_id = $1 AND user_id = $2 AND question_id = $3
-        `, [test_id, userDetails.id, question_id]);
-
+            WHERE test_id = $1 AND user_id = $2 AND question_id = $3 AND status = 'open'
+          `, [test_id, userDetails.id, question_id]);
+      
+        
         await client.query("COMMIT");
 
         return res.status(200).json({
