@@ -62,6 +62,8 @@ const createUsersTable = async () => {
       );
     `);
 
+
+
     
 
     // Check if column "course_id" exists in "question" table
@@ -490,6 +492,16 @@ await pool.query(`
   ALTER TABLE test_results
   ALTER COLUMN final_result DROP NOT NULL;
 `);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS module (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    status SMALLINT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
 
 
 

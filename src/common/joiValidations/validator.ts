@@ -18,6 +18,13 @@ enum RoleName {
     parent = "parent",
 }
 
+enum ModuleEnum {
+    users = "users",
+    roles = "roles",
+    tests = "tests",
+}
+
+
 
 
 
@@ -315,7 +322,11 @@ export const testBatchSchema = Joi.object({
     start_date: Joi.string().optional(), // Format: DD-MM-YYYY
     end_date: Joi.string().optional()
   });
-  
+  export const moduleSchema = Joi.object({
+    name: Joi.string()
+        .valid(...Object.values(ModuleEnum))
+        .required()
+});
 
 
 
@@ -333,7 +344,8 @@ export const joiSchema = {
     batchSchema,
     testBatchSchema,
     updatecourseSchema,
-    updateBatchSchema
+    updateBatchSchema,
+    moduleSchema
 
     
    
