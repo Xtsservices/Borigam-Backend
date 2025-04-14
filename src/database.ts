@@ -258,22 +258,7 @@ const createUsersTable = async () => {
 
   `);
   
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS test_submissions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        test_id INTEGER NOT NULL,
-        question_id INTEGER NOT NULL,
-        is_correct BOOLEAN NOT NULL,
-            option_id INTEGER REFERENCES option(id), -- Optional option reference
 
-        submitted_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE (user_id, test_id, question_id),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
-        FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
-    );
-`);
 
 await pool.query(`
   CREATE TABLE IF NOT EXISTS role (
@@ -359,20 +344,25 @@ await pool.query(`
   `);
 
 await pool.query(`
-    CREATE TABLE IF NOT EXISTS test_submissions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        test_id INTEGER NOT NULL,
-        question_id INTEGER NOT NULL,
-        is_correct BOOLEAN NOT NULL,
-            option_id INTEGER REFERENCES option(id), -- Optional option reference
+   CREATE TABLE IF NOT EXISTS test_submissions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    test_id INTEGER NOT NULL,
+    question_id INTEGER NOT NULL,
+    option_id INTEGER REFERENCES option(id),
+    text TEXT,
+    is_correct BOOLEAN NOT NULL,
+    status TEXT DEFAULT 'unanswered',
+    submitted_at TIMESTAMP DEFAULT NOW(),
 
-        submitted_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE (user_id, test_id, question_id),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
-        FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
-    );
+    CONSTRAINT unique_user_test_question_option
+    UNIQUE (user_id, test_id, question_id, option_id),
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (test_id) REFERENCES test(id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES question(id) ON DELETE CASCADE
+);
+
 `);
 
 await pool.query(`
@@ -417,19 +407,19 @@ CREATE TABLE IF NOT EXISTS test_batches (
   ` 
 );
 
-const checkStatusColumn = await pool.query(`
-  SELECT 1
-  FROM information_schema.columns
-  WHERE table_name = 'test_submissions' AND column_name = 'status';
-`);
+// const checkStatusColumn = await pool.query(`
+//   SELECT 1
+//   FROM information_schema.columns
+//   WHERE table_name = 'test_submissions' AND column_name = 'status';
+// `);
 
-if (checkStatusColumn.rowCount === 0) {
-  await pool.query(`
-    ALTER TABLE test_submissions
-    ADD COLUMN status VARCHAR(20) DEFAULT 'open';
-  `);
-  console.log("✅ Added 'status' column to 'test_submissions' table.");
-}
+// if (checkStatusColumn.rowCount === 0) {
+//   await pool.query(`
+//     ALTER TABLE test_submissions
+//     ADD COLUMN status VARCHAR(20) DEFAULT 'open';
+//   `);
+//   console.log("✅ Added 'status' column to 'test_submissions' table.");
+// }
 
 const checkStartTimeColumn = await pool.query(`
   SELECT 1
@@ -476,6 +466,65 @@ await pool.query(`
   ALTER TABLE test_results
   ALTER COLUMN correct DROP NOT NULL;
 `);
+await pool.query(`
+  DO $$
+BEGIN
+    -- Check if the columns exist before adding them
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'test_results' 
+                   AND column_name = 'marks_awarded') THEN
+        ALTER TABLE test_results
+        ADD COLUMN marks_awarded DECIMAL(10, 2) DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'test_results' 
+                   AND column_name = 'marks_deducted') THEN
+        ALTER TABLE test_results
+        ADD COLUMN marks_deducted DECIMAL(10, 2) DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'test_results' 
+                   AND column_name = 'final_score') THEN
+        ALTER TABLE test_results
+        ADD COLUMN final_score DECIMAL(5, 2) DEFAULT 0;
+    END IF;
+END $$;
+
+`);
+
+
+
+// const constraintName = "unique_user_test_question_option";
+
+// const constraintExistsQuery = `
+//     SELECT 1
+//     FROM information_schema.table_constraints
+//     WHERE table_name = 'test_submissions'
+//       AND constraint_name = $1;
+// `;
+
+// const result = await pool.query(constraintExistsQuery, [constraintName]);
+
+// if (result.rowCount === 0) {
+//     await pool.query(`
+//         ALTER TABLE test_submissions
+//         ADD CONSTRAINT ${constraintName}
+//         UNIQUE (user_id, test_id, question_id, option_id);
+//     `);
+//     console.log("Constraint added successfully.");
+// } else {
+//     console.log("Constraint already exists. Skipping ALTER TABLE.");
+// }
+
+// await pool.query(`
+//   ALTER TABLE test_submissions
+//   DROP CONSTRAINT IF EXISTS test_submissions_user_id_test_id_question_id_key;
+// `);
+
+
+
 
 await pool.query(`
   ALTER TABLE test_results
@@ -515,6 +564,90 @@ await pool.query(`
     UNIQUE(role_id, module_id)
   );
 `);
+
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns 
+      WHERE table_name='test_results' AND column_name='start_time'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN start_time BIGINT;
+    END IF;
+  END
+  $$;
+`);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'marks_awarded'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN marks_awarded NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'marks_deducted'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN marks_deducted NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'total_marks_awarded'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN total_marks_awarded NUMERIC;
+    END IF;
+  END
+  $$;
+`);
+
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_submissions' AND column_name = 'marks_awarded'
+    ) THEN
+      ALTER TABLE test_submissions ADD COLUMN marks_awarded NUMERIC DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_submissions' AND column_name = 'marks_deducted'
+    ) THEN
+      ALTER TABLE test_submissions ADD COLUMN marks_deducted NUMERIC DEFAULT 0;
+    END IF;
+  END
+  $$;
+`);
+
+const { rows } = await pool.query(`
+  SELECT column_name, data_type
+  FROM information_schema.columns
+  WHERE table_name = 'test_submissions'
+  AND column_name IN ('marks_awarded', 'marks_deducted');
+`);
+
+const isAlreadyFloat = rows.every(row => row.data_type === 'double precision'); // FLOAT in Postgres maps to double precision
+
+if (!isAlreadyFloat) {
+  await pool.query(`
+    ALTER TABLE test_submissions
+    ALTER COLUMN marks_awarded TYPE FLOAT,
+    ALTER COLUMN marks_deducted TYPE FLOAT;
+  `);
+  console.log('Columns altered to FLOAT');
+} else {
+  console.log('Columns are already FLOAT');
+}
+
+
+
+
 
 
 

@@ -227,13 +227,16 @@ export const testWithQuestionsSchema = Joi.object({
 
 
 
-const submitTestSchema = Joi.object({
-    test_id: Joi.number().integer().required(),
+export const submitTestSchema = Joi.object({
+    test_id: Joi.number().required(),
     answers: Joi.array().items(
         Joi.object({
-            question_id: Joi.number().integer().required(),
-            option_id: Joi.number().integer().allow(null),
-            text: Joi.string().allow(null, "")
+            question_id: Joi.number().required(),
+            option_id: Joi.alternatives().try(
+                Joi.number(),
+                Joi.array().items(Joi.number())
+            ),
+            text: Joi.string().allow(null, '')
         })
     ).required()
 });

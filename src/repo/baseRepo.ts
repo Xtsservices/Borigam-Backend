@@ -265,6 +265,27 @@ class BaseRepository {
       throw new Error(`Database update failed: ${error.message}`);
     }
   }
+
+  // Delete method with transaction support
+async delete(
+  table: string,
+  conditions: Record<string, any>,
+  client?: PoolClient
+): Promise<void> {
+  try {
+    const keys = Object.keys(conditions);
+    const values = Object.values(conditions);
+
+    const conditionStr = keys.map((key, index) => `${key} = $${index + 1}`).join(" AND ");
+    const query = `DELETE FROM ${table} WHERE ${conditionStr}`;
+
+    await this.query(query, values, client);
+  } catch (error: any) {
+    console.error('Error executing delete query:', error);
+    throw new Error(`Database delete failed: ${error.message}`);
+  }
+}
+
 }
 
 export default new BaseRepository();
