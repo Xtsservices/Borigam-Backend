@@ -583,40 +583,40 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
         let marks_awarded = submittedAnswers.reduce((sum, a) => sum + parseFloat(a.marks_awarded || 0), 0);
         let marks_deducted = submittedAnswers.reduce((sum, a) => sum + parseFloat(a.marks_deducted || 0), 0);
 
-        if (attempted === totalQuestions) {
-            const finalScore = ((correct / totalQuestions) * 100).toFixed(2);
-            const finalResult = correct >= totalQuestions / 2 ? "Pass" : "Fail";
+        // if (attempted === totalQuestions) {
+        //     const finalScore = ((correct / totalQuestions) * 100).toFixed(2);
+        //     const finalResult = correct >= totalQuestions / 2 ? "Pass" : "Fail";
 
-            await baseRepository.upsert(
-                "test_results",
-                { user_id: userDetails.id, test_id },
-                {
-                    total_questions: totalQuestions,
-                    attempted,
-                    correct,
-                    wrong,
-                    final_score: finalScore,
-                    final_result: finalResult,
-                    marks_awarded,
-                    marks_deducted,
-                    total_marks_awarded: marks_awarded - marks_deducted
-                } as any,
-                client
-            );
+        //     await baseRepository.upsert(
+        //         "test_results",
+        //         { user_id: userDetails.id, test_id },
+        //         {
+        //             total_questions: totalQuestions,
+        //             attempted,
+        //             correct,
+        //             wrong,
+        //             final_score: finalScore,
+        //             final_result: finalResult,
+        //             marks_awarded,
+        //             marks_deducted,
+        //             total_marks_awarded: marks_awarded - marks_deducted
+        //         } as any,
+        //         client
+        //     );
 
-            finalSummary = {
-                totalQuestions,
-                attempted,
-                correct,
-                wrong,
-                finalScore,
-                finalResult,
-                marks_awarded,
-                marks_deducted,
-                total_marks_awarded: marks_awarded - marks_deducted,
-                message: "Final submission completed"
-            };
-        }
+        //     finalSummary = {
+        //         totalQuestions,
+        //         attempted,
+        //         correct,
+        //         wrong,
+        //         finalScore,
+        //         finalResult,
+        //         marks_awarded,
+        //         marks_deducted,
+        //         total_marks_awarded: marks_awarded - marks_deducted,
+        //         message: "Final submission completed"
+        //     };
+        // }
 
         let pendingsubmission = await common.gettestStatus(test_id,user_id)
         if(pendingsubmission && pendingsubmission.unanswered){
@@ -663,35 +663,44 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
         const result = await baseRepository.select(
             "test_results",
             { user_id, test_id },
-            ['total_questions', 'attempted', 'correct', 'wrong', 'final_score', 'final_result']
+            ['total_questions', 'attempted', 'unattempted', 'correct', 'wrong', 'final_score', 'final_result', 'marks_awarded', 'marks_deducted']
         );
 
         if (result.length === 0) {
             return res.status(404).json({ error: "Test result not found for this test ID" });
         }
 
-        // Fetch submitted answers with submitted option and all options
         const answersQuery = `
             SELECT 
                 q.id AS question_id,
                 q.name AS question_text,
                 q.type AS question_type,
-                ts.is_correct,
-                ts.option_id AS submitted_option_id,
-                submitted_option.option_text AS submitted_option_text,
+                COALESCE(array_agg(DISTINCT ts.option_id) FILTER (
+                    WHERE ts.status = 'answered' AND ts.option_id IS NOT NULL
+                ), '{}') AS submitted_option_ids,
+                bool_or(ts.is_correct) FILTER (WHERE ts.status = 'answered') AS is_correct,
+                SUM(ts.marks_awarded) FILTER (WHERE ts.status = 'answered') AS marks_awarded,
+                SUM(ts.marks_deducted) FILTER (WHERE ts.status = 'answered') AS marks_deducted,
+                CASE 
+                    WHEN COUNT(ts.id) FILTER (WHERE ts.status = 'answered') > 0 THEN 'answered'
+                    ELSE 'unanswered'
+                END AS submission_status,
                 json_agg(
-                    json_build_object(
+                    jsonb_build_object(
                         'option_id', o.id,
                         'option_text', o.option_text,
                         'is_correct', o.is_correct
                     ) ORDER BY o.id
                 ) AS options
-            FROM test_submissions ts
-            INNER JOIN question q ON ts.question_id = q.id
+            FROM test_questions tq
+            JOIN question q ON tq.question_id = q.id
+            LEFT JOIN test_submissions ts 
+                ON ts.question_id = q.id 
+                AND ts.user_id = $1 
+                AND ts.test_id = $2
             LEFT JOIN option o ON o.question_id = q.id
-            LEFT JOIN option submitted_option ON submitted_option.id = ts.option_id
-            WHERE ts.user_id = $1 AND ts.test_id = $2
-            GROUP BY q.id, q.name, q.type, ts.is_correct, ts.option_id, submitted_option.option_text
+            WHERE tq.test_id = $2
+            GROUP BY q.id, q.name, q.type
         `;
 
         const answers = await baseRepository.query(answersQuery, [user_id, test_id]);
@@ -706,6 +715,140 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
         return res.status(500).json({ error: "Internal server error", details: err });
     }
 };
+
+
+export const submitFinalResult = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Fetching test result by ID");
+
+    let { test_id, user_id } = req.query;
+    const token = req.headers['token'];
+
+    if (!test_id) {
+        return res.status(400).json({ error: "Test ID is required" });
+    }
+
+    const userDetails = await getdetailsfromtoken(token);
+    if (!user_id) user_id = userDetails.id;
+
+    try {
+
+
+        const client = await baseRepository.getClient();
+
+        // Get all test questions and user answers along with marks awarded and deducted
+        const answersQuery = `
+            SELECT 
+                q.id AS question_id,
+                q.name AS question_text,
+                q.type AS question_type,
+                ts.marks_awarded,
+                ts.marks_deducted,
+                COALESCE(array_agg(DISTINCT ts.option_id) FILTER (
+                    WHERE ts.status = 'answered' AND ts.option_id IS NOT NULL
+                ), '{}') AS submitted_option_ids,
+                bool_or(ts.is_correct) FILTER (WHERE ts.status = 'answered') AS is_correct,
+                CASE 
+                    WHEN COUNT(ts.id) FILTER (WHERE ts.status = 'answered') > 0 THEN 'answered'
+                    ELSE 'unanswered'
+                END AS submission_status,
+                json_agg(
+                    jsonb_build_object(
+                        'option_id', o.id,
+                        'option_text', o.option_text,
+                        'is_correct', o.is_correct
+                    ) ORDER BY o.id
+                ) AS options
+            FROM test_questions tq
+            JOIN question q ON tq.question_id = q.id
+            LEFT JOIN test_submissions ts 
+                ON ts.question_id = q.id 
+                AND ts.user_id = $1 
+                AND ts.test_id = $2
+            LEFT JOIN option o ON o.question_id = q.id
+            WHERE tq.test_id = $2
+            GROUP BY q.id, q.name, q.type, ts.marks_awarded, ts.marks_deducted
+        `;
+
+        const answers: any = await baseRepository.query(answersQuery, [user_id, test_id]);
+
+        // Derived values
+        const total_questions = answers.length;
+        const attempted = answers.filter((q: any) => q.submission_status === 'answered').length;
+        const unattempted = total_questions - attempted;
+        const correct = answers.filter((q: any) => q.submission_status === 'answered' && q.is_correct === true).length;
+        const wrong = attempted - correct;
+
+        // Calculate marks
+        const marks_awarded = answers.reduce((sum: number, q: any) => sum + parseFloat(q.marks_awarded || 0), 0);
+        const marks_deducted = answers.reduce((sum: number, q: any) => sum + parseFloat(q.marks_deducted || 0), 0);
+
+        const final_score = total_questions > 0 ? ((correct / total_questions) * 100).toFixed(2) : '0.00';
+        const final_result = correct >= total_questions / 2 ? "Pass" : "Fail";
+
+        // Insert or Update result in the database
+        const insertQuery = `
+        INSERT INTO test_results 
+        (user_id, test_id, total_questions, attempted, unattempted, correct, wrong, final_score, final_result, marks_awarded, marks_deducted, created_at)
+        VALUES 
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        ON CONFLICT (user_id, test_id) 
+        DO UPDATE SET 
+            total_questions = EXCLUDED.total_questions,
+            attempted = EXCLUDED.attempted,
+            unattempted = EXCLUDED.unattempted,
+            correct = EXCLUDED.correct,
+            wrong = EXCLUDED.wrong,
+            final_score = EXCLUDED.final_score,
+            final_result = EXCLUDED.final_result,
+            marks_awarded = EXCLUDED.marks_awarded,
+            marks_deducted = EXCLUDED.marks_deducted;
+    `;
+    
+
+        await client.query(insertQuery, [
+            user_id,
+            test_id,
+            total_questions,
+            attempted,
+            unattempted,
+            correct,
+            wrong,
+            final_score,
+            final_result,
+            marks_awarded,
+            marks_deducted
+        ]);
+
+        await client.release();
+
+        return res.status(200).json({
+            message: "Test result saved successfully",
+            result: {
+                total_questions,
+                attempted,
+                unattempted,
+                correct,
+                wrong,
+                final_score,
+                final_result,
+                marks_awarded,
+                marks_deducted,
+                total_marks_awarded: marks_awarded - marks_deducted
+            },
+            answers
+        });
+    } catch (err) {
+        logger.error("Error fetching test result:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    }
+};
+
+
+
+
+
+
+
 
 
 

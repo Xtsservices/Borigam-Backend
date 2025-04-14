@@ -624,6 +624,19 @@ await pool.query(`
   END
   $$;
 `);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'unattempted'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN unattempted INT DEFAULT 0;
+    END IF;
+  END
+  $$;
+`);
+
 
 const { rows } = await pool.query(`
   SELECT column_name, data_type
