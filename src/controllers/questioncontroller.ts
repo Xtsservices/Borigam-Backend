@@ -13,7 +13,9 @@ import { getStatus } from "../utils/constants";
 import ResponseMessages from "../common/responseMessages";
 import { responseMessage } from "../utils/serverResponses";
 import { PoolClient } from "pg";
-import moment from 'moment';
+import moment from 'moment-timezone';
+moment.tz.setDefault("Asia/Kolkata");
+
 interface MulterS3File extends Express.Multer.File {
     location: string;
   }
@@ -380,8 +382,9 @@ export const createTest = async (req: Request, res: Response, next: NextFunction
         questions
       } = req.body;
   
-      const parsedStart = moment(start_date, "DD-MM-YYYY").startOf("day");
-      const parsedEnd = moment(end_date, "DD-MM-YYYY").endOf("day");
+      const parsedStart = moment(start_date, "DD-MM-YYYY hh:mm A");
+      const parsedEnd = moment(end_date, "DD-MM-YYYY hh:mm A");
+     
   
       if (!parsedStart.isValid() || !parsedEnd.isValid()) {
         await client.query("ROLLBACK");
