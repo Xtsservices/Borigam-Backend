@@ -139,7 +139,6 @@ const createUsersTable = async () => {
       `);
       console.log("✅ 'image' column added to 'option' table.");
     } else {
-      console.log("✅ 'image' column already exists in 'option' table.");
     }
 
 
