@@ -328,6 +328,15 @@ export const testBatchSchema = Joi.object({
         .required()
 });
 
+export const permissionSchema = Joi.object({
+    role_id: Joi.number().required(),
+    module_id: Joi.number().required(),
+    read_permission: Joi.boolean().required(),
+    write_permission: Joi.boolean().required(),
+    update_permission: Joi.boolean().required(),
+    delete_permission: Joi.boolean().required(),
+  });
+
 
 
 export const joiSchema = {
@@ -345,7 +354,8 @@ export const joiSchema = {
     testBatchSchema,
     updatecourseSchema,
     updateBatchSchema,
-    moduleSchema
+    moduleSchema,
+    permissionSchema
 
     
    

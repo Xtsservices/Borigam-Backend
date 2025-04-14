@@ -502,6 +502,21 @@ await pool.query(`
   );
 `);
 
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS permissions (
+    id SERIAL PRIMARY KEY,
+    role_id INT NOT NULL,
+    module_id INT NOT NULL,
+    read_permission BOOLEAN DEFAULT FALSE,
+    write_permission BOOLEAN DEFAULT FALSE,
+    update_permission BOOLEAN DEFAULT FALSE,
+    delete_permission BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE,
+    FOREIGN KEY (module_id) REFERENCES module(id) ON DELETE CASCADE,
+    UNIQUE(role_id, module_id)
+  );
+`);
+
 
 
 
