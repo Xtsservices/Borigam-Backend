@@ -9,6 +9,7 @@ export const upload = multer({
         bucket: process.env.AWS_S3_BUCKET_NAME!,
         contentType: multerS3.AUTO_CONTENT_TYPE,
         key: (req, file, cb) => {
+            console.log(file.originalname)
             const ext = path.extname(file.originalname);
             cb(null, `questions/${Date.now()}-${file.originalname}`);
         },
@@ -20,5 +21,6 @@ export const upload = multer({
             cb(null, false); // Reject non-image
         }
     },
+
 });
 

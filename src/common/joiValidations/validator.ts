@@ -18,6 +18,13 @@ enum RoleName {
     parent = "parent",
 }
 
+enum ModuleEnum {
+    users = "users",
+    roles = "roles",
+    tests = "tests",
+}
+
+
 
 
 
@@ -108,6 +115,20 @@ const courseSchema = Joi.object({
             'any.required': commonValidations.course.required,
         }),
 });
+const updatecourseSchema = Joi.object({
+    name: Joi.string()
+        .required()
+        .messages({
+            'string.empty': commonValidations.course.empty,
+            'any.required': commonValidations.course.required,
+        }),
+        id: Joi.number()
+        .required()
+        .messages({
+            'string.empty': commonValidations.courseID.empty,
+            'any.required': commonValidations.courseID.required,
+        }),
+});
 
 const subjectSchema = Joi.object({
     name: Joi.string()
@@ -127,45 +148,25 @@ const subjectSchema = Joi.object({
 
 
 export const questionWithOptionsSchema = Joi.object({
-    name: Joi.string().required().messages({
-        'string.empty': commonValidations.question.empty,
-        'any.required': commonValidations.question.required,
-    }),
-    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required().messages({
-        'string.empty': commonValidations.type.empty,
-        'any.required': commonValidations.type.required,
-        'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
-    }),
-
-    course_id: Joi.number().required().messages({
-        'number.base': 'Course ID must be a valid number',
-        'any.required': commonValidations.course.required,
-    }),
-
-    options: Joi.when('type', {
-        is: Joi.string().valid('radio', 'multiple_choice'),  // Check if type is 'radio' or 'multiple_choice'
-        then: Joi.array().items(
-            Joi.object({
-                option_text: Joi.string().required().messages({
-                    'string.empty': commonValidations.optionText.empty,
-                    'any.required': commonValidations.optionText.required,
-                }),
-                is_correct: Joi.boolean().required().messages({
-                    'boolean.base': 'is_correct must be a boolean',
-                    'any.required': "is_correct is required",
-                }),
-            }).required()
-        ).min(2).max(10).required().messages({
-            'array.base': 'Options must be an array',
-            'array.min': 'At least two options are required',
-            'array.max': 'A maximum of ten options are allowed',
-            'any.required': 'Options are required',
-        }),
-        otherwise: Joi.array().optional().messages({
-            'array.base': 'Options must be an array',
+    name: Joi.string().required(),
+    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required(),
+    course_id: Joi.number().required(),
+    total_marks: Joi.number().required(),
+    negative_marks: Joi.number().required(),
+    image: Joi.string().uri().optional(),  // Allow image as a URL or string (if it's sent as base64 or URL)
+    options: Joi.array()
+      .items(
+        Joi.object({
+          option_text: Joi.string().required(),
+          is_correct: Joi.boolean().required(),
+          image: Joi.string().uri().optional(),  // Allow option image as a URL if it's passed
         })
-    })
-});
+      )
+      .min(1)
+      .required(),
+  });
+  
+  
 
 
 
@@ -315,6 +316,27 @@ export const testBatchSchema = Joi.object({
     created_at: Joi.number().required()
   });
 
+  const updateBatchSchema = Joi.object({
+    id: Joi.number().required(),
+    name: Joi.string().required(),
+    start_date: Joi.string().optional(), // Format: DD-MM-YYYY
+    end_date: Joi.string().optional()
+  });
+  export const moduleSchema = Joi.object({
+    name: Joi.string()
+        .valid(...Object.values(ModuleEnum))
+        .required()
+});
+
+export const permissionSchema = Joi.object({
+    role_id: Joi.number().required(),
+    module_id: Joi.number().required(),
+    read_permission: Joi.boolean().required(),
+    write_permission: Joi.boolean().required(),
+    update_permission: Joi.boolean().required(),
+    delete_permission: Joi.boolean().required(),
+  });
+
 
 
 export const joiSchema = {
@@ -329,7 +351,11 @@ export const joiSchema = {
     assignStudentSchema,
     subjectSchema,
     batchSchema,
-    testBatchSchema
+    testBatchSchema,
+    updatecourseSchema,
+    updateBatchSchema,
+    moduleSchema,
+    permissionSchema
 
     
    

@@ -1,11 +1,19 @@
 import express from 'express';
-import {  submitTest,getTestResultById } from '../controllers/testsubmissioncontroller';
+import {  startTest, getTestSubmissions,setQuestionStatusUnanswered,submitTest,getTestResultById } from '../controllers/testsubmissioncontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
 
 const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
   Promise.resolve(fn(req, res, next)).catch(next);
+
+router.post('/startTest',asyncHandler(validateToken), asyncHandler(startTest));
+
+router.get('/getTestQuestionSubmissions',asyncHandler(validateToken), asyncHandler(getTestSubmissions));
+
+router.get('/setQuestionStatusUnanswered',asyncHandler(validateToken), asyncHandler(setQuestionStatusUnanswered));
+
+
 
 router.post('/submitTest',asyncHandler(validateToken), asyncHandler(submitTest));
 

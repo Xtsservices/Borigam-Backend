@@ -70,7 +70,7 @@ class common {
         return password;
     };
 
-    async getStudentDetails(studentId: any,collegeId:any) {
+    async getStudentDetails(studentId: any, collegeId: any) {
         try {
 
 
@@ -103,14 +103,14 @@ class common {
     
             WHERE r.name = $1 AND u.id = $2
             `;
-    
+
             const params: any[] = ["student", studentId];
-    
+
             if (collegeId !== null) {
                 query += ` AND cs.college_id = $3`;
                 params.push(collegeId);
             }
-    
+
             query += ` GROUP BY u.id, cs.college_id, c.name`;
 
 
@@ -150,17 +150,17 @@ class common {
                 WHERE tb.batch_id = $1
                 ORDER BY t.created_at DESC;
             `;
-    
+
             const allTests = await baseRepository.query(query, [batchId, studentId]) as any[];
-    
+
             const currentTime = Math.floor(Date.now() / 1000); // current UNIX timestamp
-    
+
             const assignedTests: any[] = allTests;
             const completdTests: any[] = [];
             const openTests: any[] = [];
-    
+
             for (const test of allTests) {
-                console.log(test.start_date,currentTime,test.end_date)
+                console.log(test.start_date, currentTime, test.end_date)
                 if (test.result_id) {
                     completdTests.push(test);
 
@@ -168,7 +168,7 @@ class common {
                     openTests.push(test);
                 }
             }
-    
+
             return {
                 assignedTests,
                 completdTests,
@@ -178,7 +178,27 @@ class common {
             throw err;
         }
     }
-    
+
+    async profile(id: any) {
+        try {
+
+            // Fetch user profile with role
+            const profileQuery = `
+    SELECT u.*, r.name AS role
+    FROM users u
+    LEFT JOIN user_roles ur ON u.id = ur.user_id
+    LEFT JOIN role r ON ur.role_id = r.id
+    WHERE u.id = $1
+  `;
+            const result = await baseRepository.query(profileQuery, [id]);
+
+
+            return result
+        } catch (err) {
+            throw err;
+        }
+    }
+
 
 
 

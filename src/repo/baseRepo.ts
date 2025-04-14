@@ -186,7 +186,7 @@ class BaseRepository {
     try {
       // Schema validation
       for (const key of Object.keys(schema)) {
-        if (schema[key].required && !data[key]) {
+        if (schema[key].required && (schema[key] === undefined || schema[key] === null)) {
           throw new Error(`${key} is required`);
         }
       }

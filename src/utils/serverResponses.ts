@@ -6,7 +6,7 @@ export const serverResponseCodes = {
     Unauthorized: 401,
     Permissions_Denied: 403,
     NoData: 404,
-    AlreadyExist: 202,
+    AlreadyExist: 403,
     Success: 200,
     AcessToken: 440
   }

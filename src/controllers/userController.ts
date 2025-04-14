@@ -111,46 +111,73 @@ export const getUsers = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const user: any = await baseRepository.findOne("users", "email = $1", [
-      email,
-    ]);
+
+    const user: any = await baseRepository.findOne("users", "email = $1", [email]);
     if (!user) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
-    const loginData: any = await baseRepository.findOne(
-      "login",
-      "user_id = $1",
-      [user.id]
-    );
-    let matachPassword = await common.comparePassword(
-      password,
-      loginData.password
-    );
-    if (!loginData || !matachPassword) {
+
+    const loginData: any = await baseRepository.findOne("login", "user_id = $1", [user.id]);
+    const matchPassword = await common.comparePassword(password, loginData?.password);
+
+    if (!loginData || !matchPassword) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
-    let token = await common.generatetoken(user.id);
-    res.json({ token });
+
+    const token = await common.generatetoken(user.id);
+    let profile: any = await common.profile(user.id);
+    profile = profile[0];
+    profile.status = getStatus(profile.status);
+
+    let userRolesResult:any = await baseRepository.query(
+      `SELECT role_id FROM user_roles WHERE user_id = $1`,
+      [user.id]
+    );
+    const roleRows = userRolesResult;
+
+    const roleIds = roleRows.map((r: any) => r.role_id);
+    console.log(roleIds)
+    if (roleIds.length === 0) {
+      profile.permissions = [];
+      return res.json({ token, profile });
+    }
+
+    const permissionQuery = `
+  SELECT 
+    p.module_id,
+    m.name AS module_name,
+    MAX(p.read_permission::int) = 1 AS read_permission,
+    MAX(p.write_permission::int) = 1 AS write_permission,
+    MAX(p.update_permission::int) = 1 AS update_permission,
+    MAX(p.delete_permission::int) = 1 AS delete_permission
+  FROM permissions p
+  JOIN module m ON p.module_id = m.id
+  WHERE p.role_id = ANY($1)
+  GROUP BY p.module_id, m.name
+`;
+
+
+    const permissionsResult:any = await baseRepository.query(permissionQuery, [roleIds]);
+    profile.permissions = permissionsResult || [];
+
+    res.json({ token, profile });
+
   } catch (error) {
+    console.error("Login error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+
+
 
 export const myprofile = async (req: Request, res: Response) => {
   try {
     const token = req.headers['token'];
     const userDetails = await getdetailsfromtoken(token);
 
-    const query = `
-      SELECT u.*, r.name AS role
-      FROM users u
-      LEFT JOIN user_roles ur ON u.id = ur.user_id
-      LEFT JOIN role r ON ur.role_id = r.id
-      WHERE u.id = $1
-    `;
-
-    const result = await baseRepository.query(query, [userDetails.id]);
-    let user:any = result[0];
+    let user: any = await common.profile(userDetails.id);
+    user = user[0];
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -158,13 +185,46 @@ export const myprofile = async (req: Request, res: Response) => {
 
     user.status = getStatus(user.status);
 
+    // 🔍 Fetch roles from user_roles
+    const userRolesResults:any = await baseRepository.query(
+      `SELECT role_id FROM user_roles WHERE user_id = $1`,
+      [user.id]
+    );
 
-    res.json(user);
+    const roleRows = userRolesResults;
+    const roleIds = roleRows.map((r: any) => r.role_id);
+
+    if (roleIds.length === 0) {
+      user.permissions = [];
+      return res.json(user);
+    }
+
+    // 🔐 Fetch permissions
+    const permissionQuery = `
+      SELECT 
+        p.module_id,
+        m.name AS module_name,
+        MAX(p.read_permission::int) = 1 AS read_permission,
+        MAX(p.write_permission::int) = 1 AS write_permission,
+        MAX(p.update_permission::int) = 1 AS update_permission,
+        MAX(p.delete_permission::int) = 1 AS delete_permission
+      FROM permissions p
+      JOIN module m ON p.module_id = m.id
+      WHERE p.role_id = ANY($1)
+      GROUP BY p.module_id, m.name
+    `;
+
+    const permissionsResult:any = await baseRepository.query(permissionQuery, [roleIds]);
+    user.permissions = permissionsResult || [];
+
+    return res.json(user);
+
   } catch (error) {
     console.error("Error fetching profile:", error);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 
 
