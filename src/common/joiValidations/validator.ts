@@ -147,24 +147,34 @@ const subjectSchema = Joi.object({
 });
 
 
+
+
 export const questionWithOptionsSchema = Joi.object({
-    name: Joi.string().required(),
-    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required(),
-    course_id: Joi.number().required(),
-    total_marks: Joi.number().required(),
-    negative_marks: Joi.number().required(),
-    image: Joi.string().uri().optional(),  // Allow image as a URL or string (if it's sent as base64 or URL)
-    options: Joi.array()
-      .items(
-        Joi.object({
-          option_text: Joi.string().required(),
-          is_correct: Joi.boolean().required(),
-          image: Joi.string().uri().optional(),  // Allow option image as a URL if it's passed
-        })
-      )
-      .min(1)
-      .required(),
-  });
+  name: Joi.string().required(),
+  type: Joi.string().valid("mcq", "multiple", "text").required(),
+  course_id: Joi.number().required(),
+  total_marks: Joi.number().positive().required(),
+  negative_marks: Joi.number().min(0).required(),
+
+  correct_answer: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.string().trim().required(),
+    otherwise: Joi.forbidden(),
+  }),
+
+  options: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.array().max(0).required(), // no options for text questions
+    otherwise: Joi.array().items(
+      Joi.object({
+        option_text: Joi.string().required(),
+        is_correct: Joi.boolean().required(),
+      })
+    ).min(1).required(),
+  }),
+});
+
+
   
   
 

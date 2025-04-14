@@ -370,9 +370,9 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
 
         let continuesubmission= await common.checkendtime(test[0].duration,result[0].start_time)
 
-        if (continuesubmission == "no") {
-            return res.status(400).json({ error: "Test Submission Time is finished" });
-        }
+        // if (continuesubmission == "no") {
+        //     return res.status(400).json({ error: "Test Submission Time is finished" });
+        // }
 
 
         for (const answer of answers) {
@@ -517,15 +517,16 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
             }
 
             else if (type === "blank" || type === "text") {
-                const correctAnswers: any = await baseRepository.select(
-                    "option",
-                    { question_id },
-                    ['option_text'],
+                const questionDetails: any = await baseRepository.select(
+                    "question",
+                    { id: question_id },
+                    ['correct_answer'],
                     client
                 );
-
-                if (correctAnswers.some((opt: { option_text: string }) =>
-                    opt.option_text.toLowerCase() === text?.toLowerCase())) {
+            
+                const correctAnswer = questionDetails?.[0]?.correct_answer || null;
+            
+                if (correctAnswer && correctAnswer.trim().toLowerCase() === text?.trim().toLowerCase()) {
                     isCorrect = true;
                 }
 

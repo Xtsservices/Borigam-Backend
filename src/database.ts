@@ -636,6 +636,19 @@ await pool.query(`
   END
   $$;
 `);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'question' AND column_name = 'correct_answer'
+    ) THEN
+      ALTER TABLE question ADD COLUMN correct_answer TEXT;
+    END IF;
+  END
+  $$;
+`);
+
 
 
 const { rows } = await pool.query(`
