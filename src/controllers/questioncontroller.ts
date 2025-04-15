@@ -471,7 +471,7 @@ export const createTest = async (req: Request, res: Response, next: NextFunction
 
       await baseRepository.insertMultiple("test_questions", testQuestionsData, testQuestionsSchema, client);
 
-      const toStatus = getStatus("assignedtotest");
+      const toStatus = getStatus("testassigned");
 
       await client.query(
         'UPDATE question SET status = $1 WHERE id = ANY($2)',
