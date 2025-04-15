@@ -158,7 +158,6 @@ class common {
             const randomIndex = crypto.randomInt(0, charset.length);
             password += charset[randomIndex];
         }
-        password = "123456"
         return password;
     };
 

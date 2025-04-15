@@ -17,6 +17,8 @@ import { userSchema } from "../model/user";
 import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
 import moment from 'moment';
+import { sendWelcomeEmail } from "../utils/mailService";
+
 
 
 
@@ -104,6 +106,15 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
             loginSchema,
             client
         );
+
+        await sendWelcomeEmail({
+            to: email,
+            firstname,
+            lastname,
+            userId: email,
+            password,
+          });
+      
 
         await client.query("COMMIT"); // Commit transaction
         logger.info("Student created successfully");
