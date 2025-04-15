@@ -185,7 +185,7 @@ const subjectSchema = Joi.object({
 
 export const questionWithOptionsSchema = Joi.object({
   name: Joi.string().required(),
-  type: Joi.string().valid("mcq", "multiple", "text").required(),
+  type: Joi.string().valid("radio", "blank", "multiple_choice","text").required(),
   course_id: Joi.number().required(),
   total_marks: Joi.number().positive().required(),
   negative_marks: Joi.number().min(0).required(),
