@@ -1,5 +1,5 @@
 import express from 'express';
-import { createQuestion, getAllQuestions, deleteQuestion, getQuestionsByCourseId, createTest, viewAllTests, viewTestById } from '../controllers/questioncontroller';
+import { createQuestion, getAllQuestions, deleteQuestion, getQuestionsByCourseId, createTest, viewAllTests, viewTestById,getCurrentAndUpcomingTests } from '../controllers/questioncontroller';
 import { validateToken } from '../common/tokenvalidator';
 import { upload } from "../middlewares/uploadToS3";
 
@@ -17,6 +17,8 @@ router.get('/deleteQuestion', asyncHandler(validateToken), asyncHandler(deleteQu
 
 router.post('/createTest', asyncHandler(validateToken), asyncHandler(createTest));
 router.get('/viewAllTests', asyncHandler(validateToken), asyncHandler(viewAllTests));
+router.get('/getCurrentAndUpcomingTests', asyncHandler(validateToken), asyncHandler(getCurrentAndUpcomingTests));
+
 router.get('/viewTestByID', asyncHandler(validateToken), asyncHandler(viewTestById));
 
 

@@ -564,6 +564,60 @@ export const viewAllTests = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
+export const getCurrentAndUpcomingTests = async (req: Request, res: Response, next: NextFunction) => {
+  logger.info("Fetching current and upcoming tests");
+
+  const client: PoolClient = await baseRepository.getClient();
+
+  try {
+    await client.query("BEGIN");
+
+    const now = Math.floor(Date.now() / 1000); // current UNIX timestamp
+
+    const query = `
+      SELECT 
+          t.id AS test_id, 
+          t.name AS test_name, 
+          t.duration, 
+          t.start_date,
+          t.end_date,
+          t.created_at,
+          c.id AS course_id,
+          c.name AS course_name,
+          CASE 
+            WHEN t.start_date > $1 THEN 'upcoming'
+            WHEN t.start_date <= $1 AND t.end_date >= $1 THEN 'current'
+            ELSE 'past'
+          END AS test_status
+      FROM test t
+      LEFT JOIN course c ON t.course_id = c.id
+      WHERE t.start_date >= $2 OR (t.start_date <= $1 AND t.end_date >= $1)
+      GROUP BY t.id, c.id
+      ORDER BY t.start_date ASC;
+    `;
+
+    const result = await client.query(query, [now, now]);
+
+    await client.query("COMMIT");
+
+    const current_tests = result.rows.filter(test => test.test_status === 'current');
+    const upcoming_tests = result.rows.filter(test => test.test_status === 'upcoming');
+
+    return ResponseMessages.Response(res, "Tests fetched successfully", {
+      current_tests,
+      upcoming_tests
+    });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    logger.error("Error fetching tests:", err);
+    return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+  } finally {
+    client.release();
+  }
+};
+
+
 
 
 
