@@ -1,5 +1,5 @@
 import express from 'express';
-import {  startTest, getTestSubmissions,setQuestionStatusUnanswered,submitTest,getTestResultById } from '../controllers/testsubmissioncontroller';
+import {  startTest, getTestSubmissions,setQuestionStatusUnanswered,submitTest,getTestResultById,submitFinalResult } from '../controllers/testsubmissioncontroller';
 import { validateToken } from '../common/tokenvalidator';
 
 const router = express.Router();
@@ -19,5 +19,6 @@ router.post('/submitTest',asyncHandler(validateToken), asyncHandler(submitTest))
 
 router.get('/getTestResultById',asyncHandler(validateToken), asyncHandler(getTestResultById));
 
+router.get('/submitFinalResult',asyncHandler(validateToken), asyncHandler(submitFinalResult));
 
 export default router;

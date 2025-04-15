@@ -28,7 +28,7 @@ interface MulterS3File extends Express.Multer.File {
     try {
       await client.query("BEGIN");
   
-      // Normalize options from string to array if necessary
+      // Normalize options from string to array if needed
       let noptions: any = req.body.options;
       if (typeof noptions === "string") {
         try {
@@ -39,60 +39,62 @@ interface MulterS3File extends Express.Multer.File {
         }
       }
   
-      // Validate input using Joi schema
+      // Validate input
       const { error } = joiSchema.questionWithOptionsSchema.validate(req.body);
       if (error) {
         await client.query("ROLLBACK");
         return res.status(400).json({ error: error.details[0].message });
       }
   
-      const { name, type, course_id, options, total_marks, negative_marks } = req.body;
+      const {
+        name,
+        type,
+        course_id,
+        options,
+        total_marks,
+        negative_marks,
+        correct_answer
+      } = req.body;
+  
       const status = getStatus("active");
-
+  
+      // Marks validation
       if (negative_marks >= total_marks) {
         await client.query("ROLLBACK");
         return res.status(400).json({
           error: "Negative marks cannot be greater than total marks",
         });
       }
-      if (total_marks <= 0 ) {
+      if (total_marks <= 0) {
         await client.query("ROLLBACK");
         return res.status(400).json({
-          error: "Total marks and negative marks must be greater than 0",
+          error: "Total marks must be greater than 0",
         });
       }
-      if ( negative_marks < 0 ) {
+      if (negative_marks < 0) {
         await client.query("ROLLBACK");
         return res.status(400).json({
-          error: " negative marks must be greater than 0 or 0",
+          error: "Negative marks must be 0 or greater",
         });
       }
-    
-      
-
-      
   
-      // Handle file uploads (question image and option images)
+      // File uploads
       let questionImage;
-      let optionImages:any=[]
-      if(req.files){
+      let optionImages: any[] = [];
+      if (req.files) {
         const files = req.files as { [fieldname: string]: MulterS3File[] };
-         questionImage = files["image"]?.[0]?.location || null;
-         optionImages = files["optionImages"] || [];
-
+        questionImage = files["image"]?.[0]?.location || null;
+        optionImages = files["optionImages"] || [];
       }
-   
-     
-
   
-      // Check if course exists in the database
+      // Check if course exists
       const courseData: any = await baseRepository.select("course", { id: course_id }, ["id"]);
       if (!courseData || courseData.length === 0) {
         await client.query("ROLLBACK");
         return res.status(400).json({ error: "Course not found" });
       }
   
-      // Insert the question into the database
+      // Insert question
       const newQuestion: any = await baseRepository.insert(
         "question",
         {
@@ -103,18 +105,19 @@ interface MulterS3File extends Express.Multer.File {
           image: questionImage,
           total_marks,
           negative_marks,
+          correct_answer: type === "text" ? correct_answer : null,
         },
         questionSchema,
         client
       );
   
-      // Insert options into the database
-      if (options && options.length > 0) {
+      // Insert options for non-text questions
+      if (type !== "text" && options && options.length > 0) {
         const optionsData = options.map((opt: any, index: number) => ({
           question_id: newQuestion.id,
           option_text: opt.option_text,
           is_correct: typeof opt.is_correct === "boolean" ? opt.is_correct : false,
-          image: optionImages[index]?.location || null, // Option image if available
+          image: optionImages[index]?.location || null,
         }));
   
         await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
@@ -132,6 +135,7 @@ interface MulterS3File extends Express.Multer.File {
       client.release();
     }
   };
+  
   
 
 

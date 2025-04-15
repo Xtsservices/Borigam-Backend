@@ -92,6 +92,40 @@ const studentSchema = Joi.object({
     
    
 });
+const updatestudentSchema = Joi.object({
+    studentId: Joi.number().required().messages({
+        'any.required': 'Student ID is required',
+        'number.base': 'Student ID must be a number',
+    }),
+    countrycode: Joi.string().required().messages({
+        'string.empty': commonValidations.countrycode.empty,
+        'any.required': commonValidations.countrycode.required,
+        'string.pattern.base': 'Invalid CountryCode'
+    }),
+    mobileno: Joi.string().required().regex(/^[6-9]\d{9}$/).messages({
+        'number.empty': commonValidations.mobileNumber.empty,
+        'any.required': commonValidations.mobileNumber.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    firstname: Joi.string().required().messages({
+        'string.empty': commonValidations.firstName.empty,
+        'any.required': commonValidations.firstName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    lastname: Joi.string().required().messages({
+        'string.empty': commonValidations.lastName.empty,
+        'any.required': commonValidations.lastName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    email: Joi.string().required().email().messages({
+        'string.empty': commonValidations.emailID.empty,
+        'any.required': commonValidations.emailID.required,
+        'string.pattern.base': 'Invalid email'
+    }),
+  
+    
+   
+});
 
 
 const roleSchema = Joi.object({
@@ -147,24 +181,34 @@ const subjectSchema = Joi.object({
 });
 
 
+
+
 export const questionWithOptionsSchema = Joi.object({
-    name: Joi.string().required(),
-    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required(),
-    course_id: Joi.number().required(),
-    total_marks: Joi.number().required(),
-    negative_marks: Joi.number().required(),
-    image: Joi.string().uri().optional(),  // Allow image as a URL or string (if it's sent as base64 or URL)
-    options: Joi.array()
-      .items(
-        Joi.object({
-          option_text: Joi.string().required(),
-          is_correct: Joi.boolean().required(),
-          image: Joi.string().uri().optional(),  // Allow option image as a URL if it's passed
-        })
-      )
-      .min(1)
-      .required(),
-  });
+  name: Joi.string().required(),
+  type: Joi.string().valid("mcq", "multiple", "text").required(),
+  course_id: Joi.number().required(),
+  total_marks: Joi.number().positive().required(),
+  negative_marks: Joi.number().min(0).required(),
+
+  correct_answer: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.string().trim().required(),
+    otherwise: Joi.forbidden(),
+  }),
+
+  options: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.array().max(0).required(), // no options for text questions
+    otherwise: Joi.array().items(
+      Joi.object({
+        option_text: Joi.string().required(),
+        is_correct: Joi.boolean().required(),
+      })
+    ).min(1).required(),
+  }),
+});
+
+
   
   
 
@@ -227,13 +271,16 @@ export const testWithQuestionsSchema = Joi.object({
 
 
 
-const submitTestSchema = Joi.object({
-    test_id: Joi.number().integer().required(),
+export const submitTestSchema = Joi.object({
+    test_id: Joi.number().required(),
     answers: Joi.array().items(
         Joi.object({
-            question_id: Joi.number().integer().required(),
-            option_id: Joi.number().integer().allow(null),
-            text: Joi.string().allow(null, "")
+            question_id: Joi.number().required(),
+            option_id: Joi.alternatives().try(
+                Joi.number(),
+                Joi.array().items(Joi.number())
+            ),
+            text: Joi.string().allow(null, '')
         })
     ).required()
 });
@@ -355,7 +402,8 @@ export const joiSchema = {
     updatecourseSchema,
     updateBatchSchema,
     moduleSchema,
-    permissionSchema
+    permissionSchema,
+    updatestudentSchema
 
     
    

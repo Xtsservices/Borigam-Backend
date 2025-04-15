@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import crypto from 'crypto'; // You can use crypto or any other method for generating random strings
 import baseRepository from "../repo/baseRepo";
-
+import moment from 'moment-timezone';
+moment.tz.setDefault("Asia/Kolkata");
 dotenv.config();
 
 declare global {
@@ -20,6 +21,97 @@ declare global {
 
 class common {
 
+    async checkendtime(duration:any,start_time: any) {
+
+        try {
+           let continuetest ="no";
+
+           let revisedtime =Number(start_time) + Number(duration * 60)
+           let now =moment().unix();
+
+
+           if(Number(now) >Number(revisedtime) ){
+            continuetest ="no"
+           }else{
+            continuetest ="yes"
+           }
+
+           return continuetest
+
+        } catch (error) {
+            return error
+        }
+
+
+
+    }
+
+    async  gettestStatus  (test_id: number, user_id: number)  {
+        try {
+            
+            // Unanswered: questions not answered or not attempted at all
+            const unansweredQuery = `
+                SELECT COUNT(*) FROM test_questions tq
+                WHERE tq.test_id = $1 AND NOT EXISTS (
+                    SELECT 1 FROM test_submissions ts
+                    WHERE ts.test_id = tq.test_id
+                    AND ts.question_id = tq.question_id
+                    AND ts.user_id = $2
+                    AND ts.status = 'answered'
+                )
+            `;
+            const unansweredRes:any = await baseRepository.query(unansweredQuery, [test_id, user_id]);
+            const unansweredCount = parseInt(unansweredRes[0].count);
+    
+            return {
+                unanswered: unansweredCount
+            };
+        } catch (err) {
+            console.error("Error in gettestStatus", err);
+            return {
+                open: 0,
+                unanswered: 0,
+                error: "Failed to fetch status"
+            };
+        } finally {
+        }
+    
+    };
+    
+
+    async checkTestDates(test: any) {
+
+        try {
+            let now =moment().unix();
+            let continuetest ="yes";
+           if(now >test.start_date){
+            continuetest ="yes"
+           }else{
+            continuetest ="no"
+           }
+
+           if(now >test.start_date){
+            continuetest ="yes"
+           }else{
+            continuetest ="no"
+           }
+
+           if(now >test.end_date){
+            continuetest ="no"
+           }else{
+            continuetest ="yes"
+           }
+
+
+           return continuetest
+
+        } catch (error) {
+            return error
+        }
+
+
+
+    }
 
     async hashPassword(password: string) {
 
