@@ -235,36 +235,52 @@ class BaseRepository {
   // Update method with transaction support
   async update<T>(
     table: string,
-    condition: string,  // This is a raw condition string (e.g., "user_id = $1 AND test_id = $2")
+    condition: string | Record<string, any>,  // Allow condition to be either string or object
     conditionValues: any[],  // Array of values for placeholders in the condition
     data: Record<string, any>,  // Object containing the column-value pairs to update
     client?: any
-  ): Promise<T> {
+): Promise<T> {
     try {
-      const setClause = Object.keys(data)
-        .map((key, index) => `${key} = $${index + 1}`)
-        .join(', ');
+        const setClause = Object.keys(data)
+            .map((key, index) => `${key} = $${index + 1}`)
+            .join(', ');
 
-      const updateValues = Object.values(data);
-      const adjustedCondition = condition.replace(/\$(\d+)/g, (_, match) => {
-        return `$${parseInt(match) + updateValues.length}`;
-      });
+        const updateValues = Object.values(data);
 
-      const finalValues = [...updateValues, ...conditionValues];
+        let adjustedCondition: string;
+        if (typeof condition === 'string') {
+            // If condition is already a string, use it as is
+            adjustedCondition = condition.replace(/\$(\d+)/g, (_, match) => {
+                return `$${parseInt(match) + updateValues.length}`;
+            });
+        } else if (typeof condition === 'object' && condition !== null) {
+            // If condition is an object, build a string condition like "key = $1"
+            adjustedCondition = Object.keys(condition)
+                .map((key, index) => `${key} = $${index + 1 + updateValues.length}`)
+                .join(' AND ');
 
-      const query = `
-        UPDATE ${table}
-        SET ${setClause}
-        WHERE ${adjustedCondition}
-        RETURNING *`;
+            // Add condition values (corresponding to the placeholders)
+            conditionValues = Object.values(condition);
+        } else {
+            throw new Error('Invalid condition type. Must be a string or object.');
+        }
 
-      const result = await this.query<T>(query, finalValues, client);
-      return result[0];
-    } catch (error :any) {
-      console.error('Error executing update query:', error);
-      throw new Error(`Database update failed: ${error.message}`);
+        const finalValues = [...updateValues, ...conditionValues];
+
+        const query = `
+            UPDATE ${table}
+            SET ${setClause}
+            WHERE ${adjustedCondition}
+            RETURNING *`;
+
+        const result = await this.query<T>(query, finalValues, client);
+        return result[0];
+    } catch (error: any) {
+        console.error('Error executing update query:', error);
+        throw new Error(`Database update failed: ${error.message}`);
     }
-  }
+}
+
 
   // Delete method with transaction support
 async delete(

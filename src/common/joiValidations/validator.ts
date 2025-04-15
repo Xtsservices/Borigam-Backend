@@ -92,6 +92,40 @@ const studentSchema = Joi.object({
     
    
 });
+const updatestudentSchema = Joi.object({
+    studentId: Joi.number().required().messages({
+        'any.required': 'Student ID is required',
+        'number.base': 'Student ID must be a number',
+    }),
+    countrycode: Joi.string().required().messages({
+        'string.empty': commonValidations.countrycode.empty,
+        'any.required': commonValidations.countrycode.required,
+        'string.pattern.base': 'Invalid CountryCode'
+    }),
+    mobileno: Joi.string().required().regex(/^[6-9]\d{9}$/).messages({
+        'number.empty': commonValidations.mobileNumber.empty,
+        'any.required': commonValidations.mobileNumber.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    firstname: Joi.string().required().messages({
+        'string.empty': commonValidations.firstName.empty,
+        'any.required': commonValidations.firstName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    lastname: Joi.string().required().messages({
+        'string.empty': commonValidations.lastName.empty,
+        'any.required': commonValidations.lastName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    email: Joi.string().required().email().messages({
+        'string.empty': commonValidations.emailID.empty,
+        'any.required': commonValidations.emailID.required,
+        'string.pattern.base': 'Invalid email'
+    }),
+  
+    
+   
+});
 
 
 const roleSchema = Joi.object({
@@ -368,7 +402,8 @@ export const joiSchema = {
     updatecourseSchema,
     updateBatchSchema,
     moduleSchema,
-    permissionSchema
+    permissionSchema,
+    updatestudentSchema
 
     
    
