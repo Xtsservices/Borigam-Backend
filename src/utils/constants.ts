@@ -57,6 +57,7 @@ export const ambulanceStatusmap: { [key: number]: string } = {
 export const statusmap: { [key: number]: string } = {
   2: "active",
   3: "inactive",
+  4:"testassigned"
 }
 
 export function getStatus(status: number | string): string | number {

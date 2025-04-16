@@ -672,6 +672,24 @@ if (!isAlreadyFloat) {
   console.log('Columns are already FLOAT');
 }
 
+const columnCheckQuery = `
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_name = 'login'
+    AND column_name = 'change_password';
+`;
+
+const result = await pool.query(columnCheckQuery);
+
+if (result.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE login
+    ADD COLUMN change_password BOOLEAN DEFAULT true;
+  `);
+} else {
+}
+
+
 
 
 

@@ -11,6 +11,7 @@ import logger from "../logger/logger";
 import { getStatus } from "../utils/constants";
 import { PoolClient } from "pg";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
+import { sendWelcomeEmail,forgotPasswordmail } from "../utils/mailService";
 
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   logger.info("Entered Into Create User");
@@ -113,15 +114,14 @@ export const loginUser = async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     const user: any = await baseRepository.findOne("users", "email = $1", [email]);
-    if (!user) {
-      return res.status(400).json({ error: "Invalid email or password" });
-    }
+if (!user) {
+  return res.status(400).json({ error: "Invalid email" });
+}
 
-    const loginData: any = await baseRepository.findOne("login", "user_id = $1", [user.id]);
+const loginData: any = await baseRepository.findOne("login", "user_id = $1", [user.id])
     const matchPassword = await common.comparePassword(password, loginData?.password);
-
     if (!loginData || !matchPassword) {
-      return res.status(400).json({ error: "Invalid email or password" });
+      return res.status(400).json({ error: "Invalid  password" });
     }
 
     const token = await common.generatetoken(user.id);
@@ -136,7 +136,6 @@ export const loginUser = async (req: Request, res: Response) => {
     const roleRows = userRolesResult;
 
     const roleIds = roleRows.map((r: any) => r.role_id);
-    console.log(roleIds)
     if (roleIds.length === 0) {
       profile.permissions = [];
       return res.json({ token, profile });
@@ -224,6 +223,147 @@ export const myprofile = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  logger.info("Entered into Forgot Password");
+
+  const { email } = req.body;
+
+  if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+  }
+
+  const client: PoolClient = await baseRepository.getClient();
+
+  try {
+      await client.query("BEGIN");
+
+      // Find user by email
+      const userData: any = await baseRepository.select(
+          "users",
+          { email },
+          ['id', 'firstname', 'lastname', 'email',"status"],
+          client
+      );
+
+      if (!userData || userData.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({ error: "User not found" });
+      }
+
+
+      const user:any = userData[0];
+      if(user && user.status !=2){
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Account is terminated" });
+      }
+
+      // Generate new password and hash it
+      const newPassword = await common.generateRandomPassword();
+      const hashedPassword = await common.hashPassword(newPassword);
+      // Update password in login table
+      await baseRepository.update(
+        "login",
+        { user_id: user.id },
+        [], // no need for manual conditionValues when using object-style condition
+        { password: hashedPassword, change_password: true }, // optionally update the change_password flag too
+        client
+      );
+      
+
+      // Send email with the new password
+      await forgotPasswordmail({
+          to: user.email,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          userId: user.email,
+          password: newPassword
+      });
+
+      await client.query("COMMIT");
+
+      logger.info(`Password reset email sent to ${email}`);
+
+      return ResponseMessages.Response(res, "New password sent to your email");
+
+  } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Forgot Password error:", err);
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+  } finally {
+      client.release();
+  }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const token = req.headers['token'];
+  if (!token) {
+    return res.status(401).json({ error: "Token is required" });
+  }
+
+  const userDetails = await getdetailsfromtoken(token);
+  if (!userDetails || !userDetails.id) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current and new passwords are required" });
+  }
+
+  if (currentPassword == newPassword) {
+    return res.status(400).json({ error: "Passwords can't be same" });
+  }
+
+  
+
+  const client: PoolClient = await baseRepository.getClient();
+
+  try {
+    await client.query("BEGIN");
+
+    const userId = userDetails.id;
+
+    const loginData: any = await baseRepository.findOne("login", "user_id = $1", [userId], client);
+
+    if (!loginData) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Login data not found" });
+    }
+
+    const isMatch = await common.comparePassword(currentPassword, loginData.password);
+    if (!isMatch) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Current password is incorrect" });
+    }
+
+    const hashedNewPassword = await common.hashPassword(newPassword);
+
+    
+
+    await baseRepository.update(
+      "login",
+      { user_id: userId },
+      [], // no need for manual conditionValues when using object-style condition
+      { password: hashedNewPassword, change_password: false }, // optionally update the change_password flag too
+      client
+    );
+
+    await client.query("COMMIT");
+
+    return res.status(200).json({ message: "Password updated successfully" });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Change Password Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
+  }
+};
+
+
 
 
 

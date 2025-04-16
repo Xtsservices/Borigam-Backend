@@ -17,6 +17,8 @@ import { userSchema } from "../model/user";
 import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
 import moment from 'moment';
+import { sendWelcomeEmail } from "../utils/mailService";
+
 
 
 
@@ -100,10 +102,23 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
         // Insert login credentials for the student
         await baseRepository.insert(
             "login",
-            { user_id: newStudent.id, password: hashedPassword },
+            {
+                user_id: newStudent.id,
+                password: hashedPassword,
+                change_password: true 
+            },
             loginSchema,
             client
         );
+
+        await sendWelcomeEmail({
+            to: email,
+            firstname,
+            lastname,
+            userId: email,
+            password,
+          });
+      
 
         await client.query("COMMIT"); // Commit transaction
         logger.info("Student created successfully");
@@ -324,17 +339,21 @@ export const getAllStudentsCount = async (req: Request, res: Response, next: Nex
 
 export const getAllStudents = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching all students");
-
+  
     let collegeId: any = req.query.collegeId ? parseInt(req.query.collegeId as string) : null;
+    const batchIds: number[] = req.query.batchIds
+      ? (req.query.batchIds as string).split(',').map((id) => parseInt(id))
+      : [];
+  
     const token = req.headers['token'];
-
     let details = await getdetailsfromtoken(token);
+  
     if (details.college_id && details.college_id != null) {
-        collegeId = details.college_id;
+      collegeId = details.college_id;
     }
-
+  
     try {
-        let query = `
+      let query = `
         SELECT 
             u.id AS student_id, u.firstname, u.lastname, u.email, 
             u.countrycode, u.mobileno, u.status, 
@@ -345,7 +364,7 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
                 'course_id', co.id,
                 'course_name', co.name
             )) FILTER (WHERE co.id IS NOT NULL), '[]') AS courses,
-    
+  
             -- Batches
             COALESCE(json_agg(DISTINCT jsonb_build_object(
                 'batch_id', b.id,
@@ -353,7 +372,7 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
                 'start_date', b.start_date,
                 'end_date', b.end_date
             )) FILTER (WHERE b.id IS NOT NULL), '[]') AS batches
-    
+  
         FROM users u
         JOIN user_roles ur ON u.id = ur.user_id
         JOIN role r ON ur.role_id = r.id
@@ -362,31 +381,40 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
         LEFT JOIN course_students cs2 ON u.id = cs2.student_id
         LEFT JOIN course co ON cs2.course_id = co.id
         LEFT JOIN batch b ON cs2.batch_id = b.id
-    
+  
         WHERE r.name = $1
-        AND u.status = $2  -- Filter by status = 2 (active)
-    `;
-
-        const params = ["student", 2];  // 2 is for active students
-
-        if (collegeId) {
-            query += ` AND cs.college_id = $3`;
-            params.push(collegeId);
-        }
-
-        query += ` GROUP BY u.id, cs.college_id, c.name ORDER BY u.firstname ASC`;
-
-        const students = await baseRepository.query(query, params);
-        if (students && students.length > 0) {
-            return ResponseMessages.Response(res, "Students fetched successfully", students);
-        } else {
-            return ResponseMessages.noDataFound(res, "No Students Found");
-        }
+        AND u.status = $2
+      `;
+  
+      const params: any[] = ["student", 2];
+      let paramIndex = 3;
+  
+      if (collegeId) {
+        query += ` AND cs.college_id = $${paramIndex}`;
+        params.push(collegeId);
+        paramIndex++;
+      }
+  
+      if (batchIds.length > 0) {
+        query += ` AND cs2.batch_id = ANY($${paramIndex})`;
+        params.push(batchIds);
+        paramIndex++;
+      }
+  
+      query += ` GROUP BY u.id, cs.college_id, c.name ORDER BY u.firstname ASC`;
+  
+      const students = await baseRepository.query(query, params);
+      if (students && students.length > 0) {
+        return ResponseMessages.Response(res, "Students fetched successfully", students);
+      } else {
+        return ResponseMessages.noDataFound(res, "No Students Found");
+      }
     } catch (err) {
-        logger.error("Error fetching students", err);
-        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+      logger.error("Error fetching students", err);
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     }
-};
+  };
+  
 
 export const getUnassignedStudentsCount = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching count of students without a course");
@@ -679,6 +707,8 @@ export const getAllTestResultsForAllTests = async (req: Request, res: Response, 
         return res.status(500).json({ error: "Internal server error", details: err });
     }
 };
+
+
 
 
 
