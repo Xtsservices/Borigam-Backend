@@ -102,7 +102,11 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
         // Insert login credentials for the student
         await baseRepository.insert(
             "login",
-            { user_id: newStudent.id, password: hashedPassword },
+            {
+                user_id: newStudent.id,
+                password: hashedPassword,
+                change_password: true 
+            },
             loginSchema,
             client
         );
@@ -703,6 +707,8 @@ export const getAllTestResultsForAllTests = async (req: Request, res: Response, 
         return res.status(500).json({ error: "Internal server error", details: err });
     }
 };
+
+
 
 
 

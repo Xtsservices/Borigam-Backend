@@ -21,22 +21,22 @@ declare global {
 
 class common {
 
-    async checkendtime(duration:any,start_time: any) {
+    async checkendtime(duration: any, start_time: any) {
 
         try {
-           let continuetest ="no";
+            let continuetest = "no";
 
-           let revisedtime =Number(start_time) + Number(duration * 60)
-           let now =moment().unix();
+            let revisedtime = Number(start_time) + Number(duration * 60)
+            let now = moment().unix();
 
 
-           if(Number(now) >Number(revisedtime) ){
-            continuetest ="no"
-           }else{
-            continuetest ="yes"
-           }
+            if (Number(now) > Number(revisedtime)) {
+                continuetest = "no"
+            } else {
+                continuetest = "yes"
+            }
 
-           return continuetest
+            return continuetest
 
         } catch (error) {
             return error
@@ -46,9 +46,9 @@ class common {
 
     }
 
-    async  gettestStatus  (test_id: number, user_id: number)  {
+    async gettestStatus(test_id: number, user_id: number) {
         try {
-            
+
             // Unanswered: questions not answered or not attempted at all
             const unansweredQuery = `
                 SELECT COUNT(*) FROM test_questions tq
@@ -60,9 +60,9 @@ class common {
                     AND ts.status = 'answered'
                 )
             `;
-            const unansweredRes:any = await baseRepository.query(unansweredQuery, [test_id, user_id]);
+            const unansweredRes: any = await baseRepository.query(unansweredQuery, [test_id, user_id]);
             const unansweredCount = parseInt(unansweredRes[0].count);
-    
+
             return {
                 unanswered: unansweredCount
             };
@@ -75,35 +75,35 @@ class common {
             };
         } finally {
         }
-    
+
     };
-    
+
 
     async checkTestDates(test: any) {
 
         try {
-            let now =moment().unix();
-            let continuetest ="yes";
-           if(now >test.start_date){
-            continuetest ="yes"
-           }else{
-            continuetest ="no"
-           }
+            let now = moment().unix();
+            let continuetest = "yes";
+            if (now > test.start_date) {
+                continuetest = "yes"
+            } else {
+                continuetest = "no"
+            }
 
-           if(now >test.start_date){
-            continuetest ="yes"
-           }else{
-            continuetest ="no"
-           }
+            if (now > test.start_date) {
+                continuetest = "yes"
+            } else {
+                continuetest = "no"
+            }
 
-           if(now >test.end_date){
-            continuetest ="no"
-           }else{
-            continuetest ="yes"
-           }
+            if (now > test.end_date) {
+                continuetest = "no"
+            } else {
+                continuetest = "yes"
+            }
 
 
-           return continuetest
+            return continuetest
 
         } catch (error) {
             return error
@@ -273,14 +273,24 @@ class common {
     async profile(id: any) {
         try {
 
-            // Fetch user profile with role
+
             const profileQuery = `
-    SELECT u.*, r.name AS role
-    FROM users u
-    LEFT JOIN user_roles ur ON u.id = ur.user_id
-    LEFT JOIN role r ON ur.role_id = r.id
-    WHERE u.id = $1
-  `;
+  SELECT 
+    u.*, 
+    r.name AS role,
+    COALESCE(l.change_password, false) AS change_password
+  FROM users u
+  LEFT JOIN user_roles ur ON u.id = ur.user_id
+  LEFT JOIN role r ON ur.role_id = r.id
+  LEFT JOIN login l ON u.id = l.user_id::int
+  WHERE u.id = $1
+`;
+
+
+
+          
+
+
             const result = await baseRepository.query(profileQuery, [id]);
 
 
