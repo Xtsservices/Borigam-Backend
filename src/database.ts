@@ -11,6 +11,18 @@ const pool = new Pool({
 
 const createUsersTable = async () => {
   try {
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      firstname VARCHAR(100) NOT NULL,
+      lastname VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      countrycode VARCHAR(10) NOT NULL,
+      mobileno VARCHAR(20) UNIQUE NOT NULL,
+      status SMALLINT NOT NULL
+      );
+      `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS course (
         id SERIAL PRIMARY KEY,
@@ -281,17 +293,7 @@ await pool.query(`
 
 
 
-await pool.query(`
-CREATE TABLE IF NOT EXISTS users (
-id SERIAL PRIMARY KEY,
-firstname VARCHAR(100) NOT NULL,
-lastname VARCHAR(100) NOT NULL,
-email VARCHAR(255) UNIQUE NOT NULL,
-countrycode VARCHAR(10) NOT NULL,
-mobileno VARCHAR(20) UNIQUE NOT NULL,
-status SMALLINT NOT NULL
-);
-`);
+
  await pool.query(`
 CREATE TABLE IF NOT EXISTS batch (
 id SERIAL PRIMARY KEY,
