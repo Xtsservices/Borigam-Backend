@@ -331,6 +331,24 @@ await pool.query(`
       ` 
     );
 
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'question'
+            AND column_name = 'name'
+            AND data_type = 'character varying'
+            AND character_maximum_length = 255
+        ) THEN
+          ALTER TABLE question RENAME COLUMN name TO text;
+        END IF;
+      END $$;
+    `);
+    
+
     // await pool.query(`ALTER TABLE question
     //    ADD COLUMN image TEXT; ` 
     //   );
