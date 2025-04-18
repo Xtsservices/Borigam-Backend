@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import crypto from 'crypto'; // You can use crypto or any other method for generating random strings
 import baseRepository from "../repo/baseRepo";
-
+import moment from 'moment-timezone';
+moment.tz.setDefault("Asia/Kolkata");
 dotenv.config();
 
 declare global {
@@ -20,6 +21,97 @@ declare global {
 
 class common {
 
+    async checkendtime(duration: any, start_time: any) {
+
+        try {
+            let continuetest = "no";
+
+            let revisedtime = Number(start_time) + Number(duration * 60)
+            let now = moment().unix();
+
+
+            if (Number(now) > Number(revisedtime)) {
+                continuetest = "no"
+            } else {
+                continuetest = "yes"
+            }
+
+            return continuetest
+
+        } catch (error) {
+            return error
+        }
+
+
+
+    }
+
+    async gettestStatus(test_id: number, user_id: number) {
+        try {
+
+            // Unanswered: questions not answered or not attempted at all
+            const unansweredQuery = `
+                SELECT COUNT(*) FROM test_questions tq
+                WHERE tq.test_id = $1 AND NOT EXISTS (
+                    SELECT 1 FROM test_submissions ts
+                    WHERE ts.test_id = tq.test_id
+                    AND ts.question_id = tq.question_id
+                    AND ts.user_id = $2
+                    AND ts.status = 'answered'
+                )
+            `;
+            const unansweredRes: any = await baseRepository.query(unansweredQuery, [test_id, user_id]);
+            const unansweredCount = parseInt(unansweredRes[0].count);
+
+            return {
+                unanswered: unansweredCount
+            };
+        } catch (err) {
+            console.error("Error in gettestStatus", err);
+            return {
+                open: 0,
+                unanswered: 0,
+                error: "Failed to fetch status"
+            };
+        } finally {
+        }
+
+    };
+
+
+    async checkTestDates(test: any) {
+
+        try {
+            let now = moment().unix();
+            let continuetest = "yes";
+            if (now > test.start_date) {
+                continuetest = "yes"
+            } else {
+                continuetest = "no"
+            }
+
+            if (now > test.start_date) {
+                continuetest = "yes"
+            } else {
+                continuetest = "no"
+            }
+
+            if (now > test.end_date) {
+                continuetest = "no"
+            } else {
+                continuetest = "yes"
+            }
+
+
+            return continuetest
+
+        } catch (error) {
+            return error
+        }
+
+
+
+    }
 
     async hashPassword(password: string) {
 
@@ -66,11 +158,10 @@ class common {
             const randomIndex = crypto.randomInt(0, charset.length);
             password += charset[randomIndex];
         }
-        password = "123456"
         return password;
     };
 
-    async getStudentDetails(studentId: any,collegeId:any) {
+    async getStudentDetails(studentId: any, collegeId: any) {
         try {
 
 
@@ -103,14 +194,14 @@ class common {
     
             WHERE r.name = $1 AND u.id = $2
             `;
-    
+
             const params: any[] = ["student", studentId];
-    
+
             if (collegeId !== null) {
                 query += ` AND cs.college_id = $3`;
                 params.push(collegeId);
             }
-    
+
             query += ` GROUP BY u.id, cs.college_id, c.name`;
 
 
@@ -150,17 +241,17 @@ class common {
                 WHERE tb.batch_id = $1
                 ORDER BY t.created_at DESC;
             `;
-    
+
             const allTests = await baseRepository.query(query, [batchId, studentId]) as any[];
-    
+
             const currentTime = Math.floor(Date.now() / 1000); // current UNIX timestamp
-    
+
             const assignedTests: any[] = allTests;
             const completdTests: any[] = [];
             const openTests: any[] = [];
-    
+
             for (const test of allTests) {
-                console.log(test.start_date,currentTime,test.end_date)
+                console.log(test.start_date, currentTime, test.end_date)
                 if (test.result_id) {
                     completdTests.push(test);
 
@@ -168,7 +259,7 @@ class common {
                     openTests.push(test);
                 }
             }
-    
+
             return {
                 assignedTests,
                 completdTests,
@@ -178,7 +269,37 @@ class common {
             throw err;
         }
     }
-    
+
+    async profile(id: any) {
+        try {
+
+
+            const profileQuery = `
+  SELECT 
+    u.*, 
+    r.name AS role,
+    COALESCE(l.change_password, false) AS change_password
+  FROM users u
+  LEFT JOIN user_roles ur ON u.id = ur.user_id
+  LEFT JOIN role r ON ur.role_id = r.id
+  LEFT JOIN login l ON u.id = l.user_id::int
+  WHERE u.id = $1
+`;
+
+
+
+          
+
+
+            const result = await baseRepository.query(profileQuery, [id]);
+
+
+            return result
+        } catch (err) {
+            throw err;
+        }
+    }
+
 
 
 

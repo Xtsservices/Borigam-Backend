@@ -18,6 +18,13 @@ enum RoleName {
     parent = "parent",
 }
 
+enum ModuleEnum {
+    users = "users",
+    roles = "roles",
+    tests = "tests",
+}
+
+
 
 
 
@@ -85,6 +92,40 @@ const studentSchema = Joi.object({
     
    
 });
+const updatestudentSchema = Joi.object({
+    studentId: Joi.number().required().messages({
+        'any.required': 'Student ID is required',
+        'number.base': 'Student ID must be a number',
+    }),
+    countrycode: Joi.string().required().messages({
+        'string.empty': commonValidations.countrycode.empty,
+        'any.required': commonValidations.countrycode.required,
+        'string.pattern.base': 'Invalid CountryCode'
+    }),
+    mobileno: Joi.string().required().regex(/^[6-9]\d{9}$/).messages({
+        'number.empty': commonValidations.mobileNumber.empty,
+        'any.required': commonValidations.mobileNumber.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    firstname: Joi.string().required().messages({
+        'string.empty': commonValidations.firstName.empty,
+        'any.required': commonValidations.firstName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    lastname: Joi.string().required().messages({
+        'string.empty': commonValidations.lastName.empty,
+        'any.required': commonValidations.lastName.required,
+        'string.pattern.base': 'Invalid MobileNumber'
+    }),
+    email: Joi.string().required().email().messages({
+        'string.empty': commonValidations.emailID.empty,
+        'any.required': commonValidations.emailID.required,
+        'string.pattern.base': 'Invalid email'
+    }),
+  
+    
+   
+});
 
 
 const roleSchema = Joi.object({
@@ -108,6 +149,20 @@ const courseSchema = Joi.object({
             'any.required': commonValidations.course.required,
         }),
 });
+const updatecourseSchema = Joi.object({
+    name: Joi.string()
+        .required()
+        .messages({
+            'string.empty': commonValidations.course.empty,
+            'any.required': commonValidations.course.required,
+        }),
+        id: Joi.number()
+        .required()
+        .messages({
+            'string.empty': commonValidations.courseID.empty,
+            'any.required': commonValidations.courseID.required,
+        }),
+});
 
 const subjectSchema = Joi.object({
     name: Joi.string()
@@ -126,46 +181,36 @@ const subjectSchema = Joi.object({
 });
 
 
+
+
 export const questionWithOptionsSchema = Joi.object({
-    name: Joi.string().required().messages({
-        'string.empty': commonValidations.question.empty,
-        'any.required': commonValidations.question.required,
-    }),
-    type: Joi.string().valid('radio', 'blank', 'multiple_choice', 'text').required().messages({
-        'string.empty': commonValidations.type.empty,
-        'any.required': commonValidations.type.required,
-        'any.only': `Type must be one of ['radio', 'blank', 'multiple_choice', 'text']`,
-    }),
+  name: Joi.string().required(),
+  type: Joi.string().valid("radio", "blank", "multiple_choice","text").required(),
+  course_id: Joi.number().required(),
+  total_marks: Joi.number().positive().required(),
+  negative_marks: Joi.number().min(0).required(),
 
-    course_id: Joi.number().required().messages({
-        'number.base': 'Course ID must be a valid number',
-        'any.required': commonValidations.course.required,
-    }),
+  correct_answer: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.string().trim().required(),
+    otherwise: Joi.forbidden(),
+  }),
 
-    options: Joi.when('type', {
-        is: Joi.string().valid('radio', 'multiple_choice'),  // Check if type is 'radio' or 'multiple_choice'
-        then: Joi.array().items(
-            Joi.object({
-                option_text: Joi.string().required().messages({
-                    'string.empty': commonValidations.optionText.empty,
-                    'any.required': commonValidations.optionText.required,
-                }),
-                is_correct: Joi.boolean().required().messages({
-                    'boolean.base': 'is_correct must be a boolean',
-                    'any.required': "is_correct is required",
-                }),
-            }).required()
-        ).min(2).max(10).required().messages({
-            'array.base': 'Options must be an array',
-            'array.min': 'At least two options are required',
-            'array.max': 'A maximum of ten options are allowed',
-            'any.required': 'Options are required',
-        }),
-        otherwise: Joi.array().optional().messages({
-            'array.base': 'Options must be an array',
-        })
-    })
+  options: Joi.alternatives().conditional("type", {
+    is: "text",
+    then: Joi.array().max(0).required(), // no options for text questions
+    otherwise: Joi.array().items(
+      Joi.object({
+        option_text: Joi.string().required(),
+        is_correct: Joi.boolean().required(),
+      })
+    ).min(1).required(),
+  }),
 });
+
+
+  
+  
 
 
 
@@ -226,13 +271,16 @@ export const testWithQuestionsSchema = Joi.object({
 
 
 
-const submitTestSchema = Joi.object({
-    test_id: Joi.number().integer().required(),
+export const submitTestSchema = Joi.object({
+    test_id: Joi.number().required(),
     answers: Joi.array().items(
         Joi.object({
-            question_id: Joi.number().integer().required(),
-            option_id: Joi.number().integer().allow(null),
-            text: Joi.string().allow(null, "")
+            question_id: Joi.number().required(),
+            option_id: Joi.alternatives().try(
+                Joi.number(),
+                Joi.array().items(Joi.number())
+            ),
+            text: Joi.string().allow(null, '')
         })
     ).required()
 });
@@ -315,6 +363,27 @@ export const testBatchSchema = Joi.object({
     created_at: Joi.number().required()
   });
 
+  const updateBatchSchema = Joi.object({
+    id: Joi.number().required(),
+    name: Joi.string().required(),
+    start_date: Joi.string().optional(), // Format: DD-MM-YYYY
+    end_date: Joi.string().optional()
+  });
+  export const moduleSchema = Joi.object({
+    name: Joi.string()
+        .valid(...Object.values(ModuleEnum))
+        .required()
+});
+
+export const permissionSchema = Joi.object({
+    role_id: Joi.number().required(),
+    module_id: Joi.number().required(),
+    read_permission: Joi.boolean().required(),
+    write_permission: Joi.boolean().required(),
+    update_permission: Joi.boolean().required(),
+    delete_permission: Joi.boolean().required(),
+  });
+
 
 
 export const joiSchema = {
@@ -329,7 +398,12 @@ export const joiSchema = {
     assignStudentSchema,
     subjectSchema,
     batchSchema,
-    testBatchSchema
+    testBatchSchema,
+    updatecourseSchema,
+    updateBatchSchema,
+    moduleSchema,
+    permissionSchema,
+    updatestudentSchema
 
     
    

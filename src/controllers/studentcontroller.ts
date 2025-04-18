@@ -17,6 +17,8 @@ import { userSchema } from "../model/user";
 import { getStatus } from "../utils/constants";
 import { getdetailsfromtoken } from "../common/tokenvalidator";
 import moment from 'moment';
+import { sendWelcomeEmail } from "../utils/mailService";
+
 
 
 
@@ -100,10 +102,23 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
         // Insert login credentials for the student
         await baseRepository.insert(
             "login",
-            { user_id: newStudent.id, password: hashedPassword },
+            {
+                user_id: newStudent.id,
+                password: hashedPassword,
+                change_password: true 
+            },
             loginSchema,
             client
         );
+
+        await sendWelcomeEmail({
+            to: email,
+            firstname,
+            lastname,
+            userId: email,
+            password,
+          });
+      
 
         await client.query("COMMIT"); // Commit transaction
         logger.info("Student created successfully");
@@ -125,6 +140,153 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
     }
 };
 
+export const updateStudent = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Update Student");
+
+    const token = req.headers['token'];
+    let details = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient(); // Use single transaction client
+
+    try {
+        await client.query("BEGIN"); // Start transaction
+
+        // Validate the request body using Joi schema for students
+        const { error } = joiSchema.updatestudentSchema.validate(req.body);
+        if (error) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: error.details[0].message });
+        }
+
+        const { studentId, firstname, lastname, email, countrycode, mobileno } = req.body;
+
+        // Check if studentId is valid
+        if (!studentId) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Student ID is required" });
+        }
+
+        // Prepare the update data
+        const updateData: any = { firstname, lastname, email, countrycode, mobileno };
+
+        // Log the condition and update data for debugging
+        logger.info("Updating student with condition", { studentId, updateData });
+
+        // Ensure the condition is an object and not null or undefined
+        const condition:any = { id: studentId };
+        if (typeof condition !== 'object' || condition === null) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Invalid condition provided for update" });
+        }
+
+        // Update the student in the `users` table
+        const updatedStudent: any = await baseRepository.update(
+            "users",
+            { id: studentId }as any, // This is the condition, passed as an object
+            [],
+            updateData,
+            client
+        );
+        
+
+        // Ensure updatedStudent is an object, not an array
+        if (!updatedStudent || Array.isArray(updatedStudent)) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Student not found" });
+        }
+
+        // Commit transaction
+        await client.query("COMMIT");
+        logger.info("Student updated successfully");
+
+        // Respond with success and the updated student details
+        return ResponseMessages.Response(res, "Student updated successfully", {
+            studentId: updatedStudent.id,
+            firstname: updatedStudent.firstname,
+            lastname: updatedStudent.lastname,
+            email: updatedStudent.email
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK"); // Rollback on error
+        logger.error("Error during student update", { error: err });
+        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+        client.release(); // Release client back to pool
+    }
+};
+
+export const deleteStudent = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Entered Into Delete Student");
+
+    const token = req.headers['token'];
+    let details = await getdetailsfromtoken(token);
+    const client: PoolClient = await baseRepository.getClient(); // Use single transaction client
+
+    try {
+        await client.query("BEGIN"); // Start transaction
+
+        // Validate the request body
+        const { studentId } = req.body;
+
+        // Check if studentId is valid
+        if (!studentId) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Student ID is required" });
+        }
+
+        // Prepare the update data (set status to 3)
+        const updateData = { status: 3 };  // 3 will represent "deleted"
+
+        // Log the condition and update data for debugging
+        logger.info("Deleting student with condition", { studentId, updateData });
+
+        // Ensure the condition is an object and not null or undefined
+        const condition: any = { id: studentId };
+        if (typeof condition !== 'object' || condition === null) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Invalid condition provided for update" });
+        }
+
+        // Update the student's status in the `users` table
+        const updatedStudent: any = await baseRepository.update(
+            "users",
+            { id: studentId } as any, // This is the condition, passed as an object
+            [],
+            updateData,
+            client
+        );
+
+        // Ensure updatedStudent is an object, not an array
+        if (!updatedStudent || Array.isArray(updatedStudent)) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ error: "Student not found" });
+        }
+
+        // Commit transaction
+        await client.query("COMMIT");
+        logger.info("Student deleted successfully");
+
+        // Respond with success and the updated student details
+        return ResponseMessages.Response(res, "Student deleted successfully", {
+            studentId: updatedStudent.id,
+            firstname: updatedStudent.firstname,
+            lastname: updatedStudent.lastname,
+            email: updatedStudent.email
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK"); // Rollback on error
+        logger.error("Error during student deletion", { error: err });
+        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+    } finally {
+        client.release(); // Release client back to pool
+    }
+};
+
+
+
+
+
 
 export const getAllStudentsCount = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching total count of students");
@@ -139,7 +301,7 @@ export const getAllStudentsCount = async (req: Request, res: Response, next: Nex
     }
 
     try {
-        // Query to get total student count
+        // Query to get total student count with status = 2 (e.g., active status)
         let query = `
             SELECT COUNT(u.id) AS total_students
             FROM users u
@@ -147,13 +309,14 @@ export const getAllStudentsCount = async (req: Request, res: Response, next: Nex
             JOIN role r ON ur.role_id = r.id
             LEFT JOIN college_students cs ON u.id = cs.user_id
             WHERE r.name = $1
+            AND u.status = $2
         `;
 
         // Parameters for the query
-        const params: (string | number)[] = ["student"];
+        const params: (string | number)[] = ["student", 2]; // 2 is the status value for active students
 
         if (collegeId) {
-            query += ` AND cs.college_id = $2`;
+            query += ` AND cs.college_id = $3`;
             params.push(collegeId);
         }
 
@@ -173,19 +336,24 @@ export const getAllStudentsCount = async (req: Request, res: Response, next: Nex
 
 
 
+
 export const getAllStudents = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching all students");
-
+  
     let collegeId: any = req.query.collegeId ? parseInt(req.query.collegeId as string) : null;
+    const batchIds: number[] = req.query.batchIds
+      ? (req.query.batchIds as string).split(',').map((id) => parseInt(id))
+      : [];
+  
     const token = req.headers['token'];
-
     let details = await getdetailsfromtoken(token);
+  
     if (details.college_id && details.college_id != null) {
-        collegeId = details.college_id;
+      collegeId = details.college_id;
     }
-
+  
     try {
-        let query = `
+      let query = `
         SELECT 
             u.id AS student_id, u.firstname, u.lastname, u.email, 
             u.countrycode, u.mobileno, u.status, 
@@ -196,7 +364,7 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
                 'course_id', co.id,
                 'course_name', co.name
             )) FILTER (WHERE co.id IS NOT NULL), '[]') AS courses,
-    
+  
             -- Batches
             COALESCE(json_agg(DISTINCT jsonb_build_object(
                 'batch_id', b.id,
@@ -204,7 +372,7 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
                 'start_date', b.start_date,
                 'end_date', b.end_date
             )) FILTER (WHERE b.id IS NOT NULL), '[]') AS batches
-    
+  
         FROM users u
         JOIN user_roles ur ON u.id = ur.user_id
         JOIN role r ON ur.role_id = r.id
@@ -213,32 +381,41 @@ export const getAllStudents = async (req: Request, res: Response, next: NextFunc
         LEFT JOIN course_students cs2 ON u.id = cs2.student_id
         LEFT JOIN course co ON cs2.course_id = co.id
         LEFT JOIN batch b ON cs2.batch_id = b.id
-    
+  
         WHERE r.name = $1
-    `;
-    
-    
-
-        const params = ["student"];
-
-        if (collegeId) {
-            query += ` AND cs.college_id = $2`;
-            params.push(collegeId);
-        }
-
-        query += ` GROUP BY u.id, cs.college_id, c.name ORDER BY u.firstname ASC`;
-
-        const students = await baseRepository.query(query, params);
-        if (students && students.length > 0) {
-            return ResponseMessages.Response(res, "Students fetched successfully", students);
-        } else {
-            return ResponseMessages.noDataFound(res, "No Students Found");
-        }
+        AND u.status = $2
+      `;
+  
+      const params: any[] = ["student", 2];
+      let paramIndex = 3;
+  
+      if (collegeId) {
+        query += ` AND cs.college_id = $${paramIndex}`;
+        params.push(collegeId);
+        paramIndex++;
+      }
+  
+      if (batchIds.length > 0) {
+        query += ` AND cs2.batch_id = ANY($${paramIndex})`;
+        params.push(batchIds);
+        paramIndex++;
+      }
+  
+      query += ` GROUP BY u.id, cs.college_id, c.name ORDER BY u.firstname ASC`;
+  
+      const students = await baseRepository.query(query, params);
+      if (students && students.length > 0) {
+        return ResponseMessages.Response(res, "Students fetched successfully", students);
+      } else {
+        return ResponseMessages.noDataFound(res, "No Students Found");
+      }
     } catch (err) {
-        logger.error("Error fetching students", err);
-        return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
+      logger.error("Error fetching students", err);
+      return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     }
-}; 
+  };
+  
+
 export const getUnassignedStudentsCount = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching count of students without a course");
 
@@ -261,15 +438,15 @@ export const getUnassignedStudentsCount = async (req: Request, res: Response, ne
             LEFT JOIN college_students cs ON u.id = cs.user_id
             LEFT JOIN college c ON cs.college_id = c.id
             LEFT JOIN course_students cs2 ON u.id = cs2.student_id
-            WHERE r.name = $1 AND cs2.student_id IS NULL
+            WHERE r.name = $1 AND cs2.student_id IS NULL AND u.status = $2
         `;
 
         // Parameters for the query
-        const params: (string | number)[] = ["student"];
+        const params: (string | number)[] = ["student", 2];  // 2 is for active students
 
         // If collegeId is provided, filter by college
         if (collegeId) {
-            query += ` AND cs.college_id = $2`;
+            query += ` AND cs.college_id = $3`;
             params.push(collegeId);
         }
 
@@ -286,6 +463,7 @@ export const getUnassignedStudentsCount = async (req: Request, res: Response, ne
         return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     }
 };
+
 
 export const getUnassignedStudentsList = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Fetching list of students without a course");
@@ -318,15 +496,15 @@ export const getUnassignedStudentsList = async (req: Request, res: Response, nex
             LEFT JOIN college_students cs ON u.id = cs.user_id
             LEFT JOIN college c ON cs.college_id = c.id
             LEFT JOIN course_students cs2 ON u.id = cs2.student_id
-            WHERE r.name = $1 AND cs2.student_id IS NULL
+            WHERE r.name = $1 AND cs2.student_id IS NULL AND u.status = $2
         `;
 
         // Parameters for the query
-        const params: (string | number)[] = ["student"];
+        const params: (string | number)[] = ["student", 2]; // 2 for active students
 
         // If collegeId is provided, filter by college
         if (collegeId) {
-            query += ` AND cs.college_id = $2`;
+            query += ` AND cs.college_id = $3`;
             params.push(collegeId);
         }
 
@@ -347,6 +525,7 @@ export const getUnassignedStudentsList = async (req: Request, res: Response, nex
         return ResponseMessages.ErrorHandlerMethod(res, "Internal server error", err);
     }
 };
+
 
 
 
@@ -473,6 +652,68 @@ export const assignStudentToCourse = async (req: Request, res: Response, next: N
         client.release();
     }
 };
+
+export const getAllTestResultsForAllTests = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Fetching all test results for all tests");
+
+    const token = req.headers['token'];
+    let collegeId: number | null = null;
+
+    try {
+        const details = await getdetailsfromtoken(token);
+        if (details.college_id && details.college_id != null) {
+            collegeId = details.college_id;
+        }
+
+        let resultsQuery = `
+            SELECT 
+                tr.user_id,
+                u.firstname,
+                u.lastname,
+                tr.test_id,
+                t.name AS test_name,
+                tr.total_questions,
+                tr.attempted,
+                tr.unattempted,
+                tr.correct,
+                tr.wrong,
+                tr.final_score,
+                tr.final_result,
+                tr.marks_awarded,
+                tr.marks_deducted
+            FROM test_results tr
+            INNER JOIN users u ON u.id = tr.user_id
+            INNER JOIN test t ON t.id = tr.test_id
+        `;
+
+        const params: any[] = [];
+
+        if (collegeId !== null) {
+            resultsQuery += ` WHERE u.college_id = $1`;
+            params.push(collegeId);
+        }
+
+        resultsQuery += ` ORDER BY t.name, u.firstname, u.lastname`;
+
+        const results = await baseRepository.query(resultsQuery, params);
+
+        return res.status(200).json({
+            message: "Test results retrieved successfully",
+            results
+        });
+
+    } catch (err) {
+        logger.error("Error fetching test results:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    }
+};
+
+
+
+
+
+
+
 
 
 
