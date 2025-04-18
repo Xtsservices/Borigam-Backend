@@ -285,26 +285,26 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     const status = getStatus("active");
 
     const query = `
-        SELECT 
-          q.id, 
-          q.question_text, 
-          q.type, 
-          q.status, 
-          q.image,
-          q.total_marks,
-          q.negative_marks,
-          c.id AS course_id, 
-          c.name AS course_name, 
-          o.id AS option_id, 
-          o.option_text, 
-          o.is_correct,
-          o.image AS option_image
-        FROM question q
-        LEFT JOIN option o ON q.id = o.question_id
-        LEFT JOIN course c ON q.course_id = c.id
-        WHERE q.status = $1 AND q.course_id = $2
-        ORDER BY q.id, o.id;
-      `;
+      SELECT 
+        q.id, 
+        q.question_text,  -- fixed from q.name
+        q.type, 
+        q.status, 
+        q.image,
+        q.total_marks,
+        q.negative_marks,
+        c.id AS course_id, 
+        c.name AS course_name, 
+        o.id AS option_id, 
+        o.option_text, 
+        o.is_correct,
+        o.image AS option_image
+      FROM question q
+      LEFT JOIN option o ON q.id = o.question_id
+      LEFT JOIN course c ON q.course_id = c.id
+      WHERE q.status = $1 AND q.course_id = $2
+      ORDER BY q.id, o.id;
+    `;
 
     const result = await client.query(query, [status, courseId]);
     const questions = result.rows;
@@ -316,13 +316,14 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     }
 
     const noOptionTypes = ['blank', 'text'];
+
     const groupedQuestions = questions.reduce((acc: any[], item) => {
       let question = acc.find(q => q.id === item.id);
 
       if (!question) {
         question = {
           id: item.id,
-          name: item.name,
+          name: item.question_text,  // fixed to match selected column
           type: item.type,
           status: getStatus(item.status),
           course_id: item.course_id,
@@ -356,7 +357,6 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     client.release();
   }
 };
-
 
 
 
