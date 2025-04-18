@@ -287,7 +287,6 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     const query = `
       SELECT 
         q.id, 
-        q.question_text,  -- fixed from q.name
         q.type, 
         q.status, 
         q.image,
@@ -323,7 +322,7 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
       if (!question) {
         question = {
           id: item.id,
-          name: item.question_text,  // fixed to match selected column
+          name: `Question ${item.id}`,  // Placeholder until real column is known
           type: item.type,
           status: getStatus(item.status),
           course_id: item.course_id,
@@ -357,7 +356,6 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     client.release();
   }
 };
-
 
 
 
