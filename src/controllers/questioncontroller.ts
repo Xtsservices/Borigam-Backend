@@ -287,7 +287,7 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
     const query = `
         SELECT 
           q.id, 
-          q.name, 
+          q.question_text, 
           q.type, 
           q.status, 
           q.image,
