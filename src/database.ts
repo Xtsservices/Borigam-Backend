@@ -353,8 +353,209 @@ await pool.query(`
     //    ADD COLUMN image TEXT; ` 
     //   );
 
-  
-    
+// const constraintExistsQuery = `
+//     SELECT 1
+//     FROM information_schema.table_constraints
+//     WHERE table_name = 'test_submissions'
+//       AND constraint_name = $1;
+// `;
+
+// const result = await pool.query(constraintExistsQuery, [constraintName]);
+
+// if (result.rowCount === 0) {
+//     await pool.query(`
+//         ALTER TABLE test_submissions
+//         ADD CONSTRAINT ${constraintName}
+//         UNIQUE (user_id, test_id, question_id, option_id);
+//     `);
+//     console.log("Constraint added successfully.");
+// } else {
+//     console.log("Constraint already exists. Skipping ALTER TABLE.");
+// }
+
+// await pool.query(`
+//   ALTER TABLE test_submissions
+//   DROP CONSTRAINT IF EXISTS test_submissions_user_id_test_id_question_id_key;
+// `);
+
+
+
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN wrong DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN final_score DROP NOT NULL;
+`);
+
+await pool.query(`
+  ALTER TABLE test_results
+  ALTER COLUMN final_result DROP NOT NULL;
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS module (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    status SMALLINT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS permissions (
+    id SERIAL PRIMARY KEY,
+    role_id INT NOT NULL,
+    module_id INT NOT NULL,
+    read_permission BOOLEAN DEFAULT FALSE,
+    write_permission BOOLEAN DEFAULT FALSE,
+    update_permission BOOLEAN DEFAULT FALSE,
+    delete_permission BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE,
+    FOREIGN KEY (module_id) REFERENCES module(id) ON DELETE CASCADE,
+    UNIQUE(role_id, module_id)
+  );
+`);
+
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns 
+      WHERE table_name='test_results' AND column_name='start_time'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN start_time BIGINT;
+    END IF;
+  END
+  $$;
+`);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'marks_awarded'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN marks_awarded NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'marks_deducted'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN marks_deducted NUMERIC;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'total_marks_awarded'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN total_marks_awarded NUMERIC;
+    END IF;
+  END
+  $$;
+`);
+
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_submissions' AND column_name = 'marks_awarded'
+    ) THEN
+      ALTER TABLE test_submissions ADD COLUMN marks_awarded NUMERIC DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_submissions' AND column_name = 'marks_deducted'
+    ) THEN
+      ALTER TABLE test_submissions ADD COLUMN marks_deducted NUMERIC DEFAULT 0;
+    END IF;
+  END
+  $$;
+`);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'test_results' AND column_name = 'unattempted'
+    ) THEN
+      ALTER TABLE test_results ADD COLUMN unattempted INT DEFAULT 0;
+    END IF;
+  END
+  $$;
+`);
+await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'question' AND column_name = 'correct_answer'
+    ) THEN
+      ALTER TABLE question ADD COLUMN correct_answer TEXT;
+    END IF;
+  END
+  $$;
+`);
+
+ await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'question'
+            AND column_name = 'name'
+            AND data_type = 'character varying'
+            AND character_maximum_length = 255
+        ) THEN
+          ALTER TABLE question RENAME COLUMN name TO text;
+        END IF;
+      END $$;
+    `);
+
+const { rows } = await pool.query(`
+  SELECT column_name, data_type
+  FROM information_schema.columns
+  WHERE table_name = 'test_submissions'
+  AND column_name IN ('marks_awarded', 'marks_deducted');
+`);
+
+const isAlreadyFloat = rows.every(row => row.data_type === 'double precision'); // FLOAT in Postgres maps to double precision
+
+if (!isAlreadyFloat) {
+  await pool.query(`
+    ALTER TABLE test_submissions
+    ALTER COLUMN marks_awarded TYPE FLOAT,
+    ALTER COLUMN marks_deducted TYPE FLOAT;
+  `);
+  console.log('Columns altered to FLOAT');
+} else {
+  console.log('Columns are already FLOAT');
+}
+
+const columnCheckQuery = `
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_name = 'login'
+    AND column_name = 'change_password';
+`;
+
+const result = await pool.query(columnCheckQuery);
+
+if (result.rowCount === 0) {
+  await pool.query(`
+    ALTER TABLE login
+    ADD COLUMN change_password BOOLEAN DEFAULT true;
+  `);
+} else {
+}
 
 
 
