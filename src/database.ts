@@ -339,14 +339,14 @@ await pool.query(`
           SELECT 1
           FROM information_schema.columns
           WHERE table_name = 'question'
-            AND column_name = 'name'
-            AND data_type = 'character varying'
-            AND character_maximum_length = 255
+            AND column_name = 'text'
         ) THEN
-          ALTER TABLE question RENAME COLUMN name TO text;
+          ALTER TABLE question RENAME COLUMN text TO name;
+          ALTER TABLE question ALTER COLUMN name TYPE text;
         END IF;
       END $$;
     `);
+    
     
 
     // await pool.query(`ALTER TABLE question
