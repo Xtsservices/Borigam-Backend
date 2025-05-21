@@ -184,11 +184,26 @@ const createUsersTable = async () => {
     
     if (columnExistsnegative_marks.rowCount === 0) {
       await pool.query(`
-        ALTER TABLE question
-        ADD COLUMN negative_marks INTEGER; -- or the correct type for this column
+      ALTER TABLE question
+      ADD COLUMN negative_marks FLOAT; -- Changed type to FLOAT for decimals
       `);
     } else {
-     
+      const columnTypeCheck = await pool.query(`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_name = 'question' AND column_name = 'negative_marks';
+      `);
+
+      if (
+      columnTypeCheck.rows.length > 0 &&
+      columnTypeCheck.rows[0].data_type !== 'double precision' // FLOAT maps to double precision in Postgres
+      ) {
+      await pool.query(`
+        ALTER TABLE question
+        ALTER COLUMN negative_marks TYPE FLOAT;
+      `);
+      console.log("✅ Updated 'negative_marks' column type to FLOAT.");
+      }
     }
     
     
