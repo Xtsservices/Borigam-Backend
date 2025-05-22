@@ -48,35 +48,44 @@ class common {
 
     async gettestStatus(test_id: number, user_id: number) {
         try {
-
-            // Unanswered: questions not answered or not attempted at all
-            const unansweredQuery = `
-                SELECT COUNT(*) FROM test_questions tq
-                WHERE tq.test_id = $1 AND NOT EXISTS (
-                    SELECT 1 FROM test_submissions ts
-                    WHERE ts.test_id = tq.test_id
-                    AND ts.question_id = tq.question_id
-                    AND ts.user_id = $2
-                    AND ts.status = 'answered'
-                )
+            const query = `
+                SELECT 
+                    COUNT(CASE WHEN status = 'open' THEN 1 END) AS total_open,
+                    COUNT(CASE WHEN status = 'answered' THEN 1 END) AS total_answered,
+                    COUNT(CASE WHEN status = 'unanswered' THEN 1 END) AS total_unanswered
+                FROM test_submissions
+                WHERE test_id = $1 AND user_id = $2;
             `;
-            const unansweredRes: any = await baseRepository.query(unansweredQuery, [test_id, user_id]);
-            const unansweredCount = parseInt(unansweredRes[0].count);
+
+            const result: any = await baseRepository.query(query, [test_id, user_id]);
+
+            if (!result || result.length === 0) {
+                console.warn("No rows found for the given test_id and user_id");
+                return {
+                    total_open: 0,
+                    total_answered: 0,
+                    total_unanswered: 0,
+                    error: "No data found for the given test_id and user_id"
+                };
+            }
+
+            console.log("gettestStatus result:", result[0]);
 
             return {
-                unanswered: unansweredCount
+                total_open: parseInt(result[0].total_open || "0", 10),
+                total_answered: parseInt(result[0].total_answered || "0", 10),
+                total_unanswered: parseInt(result[0].total_unanswered || "0", 10)
             };
         } catch (err) {
-            console.error("Error in gettestStatus", err);
+            console.error("Error in gettestStatus:", err);
             return {
-                open: 0,
-                unanswered: 0,
-                error: "Failed to fetch status"
+                total_open: 0,
+                total_answered: 0,
+                total_unanswered: 0,
+                error: "Failed to fetch test status"
             };
-        } finally {
         }
-
-    };
+    }
 
 
     async checkTestDates(test: any) {

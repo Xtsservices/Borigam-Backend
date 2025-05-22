@@ -333,307 +333,105 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
     const { test_id, answers } = req.body;
     const token = req.headers['token'];
     const userDetails = await getdetailsfromtoken(token);
-    let user_id = userDetails.id
+    const user_id = userDetails.id;
     const client: PoolClient = await baseRepository.getClient();
 
     try {
         await client.query("BEGIN");
 
-        let results = [];
-        let finalSummary: any = null;
-
-
-        // Check if test exists
-        const test:any = await baseRepository.select("test", { id: test_id }, ['id', 'name', 'duration', "start_date", "end_date"], client);
-
+        // Check if the test exists
+        const test: any = await baseRepository.select("test", { id: test_id }, ['id', 'name', 'duration', "start_date", "end_date"], client);
         if (test.length === 0) {
             await client.query("ROLLBACK");
             return res.status(400).json({ error: "Test not found" });
         }
 
-        let testcheck: any = await common.checkTestDates(test[0])
-        if (testcheck == "no") {
-            return res.status(400).json({ error: "Test Cant Start Now" });
-        }
-
-
-        const result:any = await baseRepository.select(
-            "test_results",
-            { user_id, test_id },
-            ['start_time']
-        );
-
-
+        // Check if the test has started
+        const result: any = await baseRepository.select("test_results", { user_id, test_id }, ['start_time'], client);
         if (result.length === 0) {
-            return res.status(400).json({ error: "Test Did not start" });
+            return res.status(400).json({ error: "Test did not start" });
         }
 
-        let continuesubmission= await common.checkendtime(test[0].duration,result[0].start_time)
-
-        // if (continuesubmission == "no") {
-        //     return res.status(400).json({ error: "Test Submission Time is finished" });
-        // }
-
-
-        for (const answer of answers) {
+        // Process answers
+        const results = await Promise.all(answers.map(async (answer: { question_id: number; option_id?: number | number[]; text?: string }) => {
             const { question_id, option_id, text } = answer;
 
-            const testQuestion = await baseRepository.select(
-                "test_questions",
-                { test_id, question_id },
-                ['id'],
-                client
-            );
+            // Check if the question is part of the test
+            const testQuestion = await baseRepository.select("test_questions", { test_id, question_id }, ['id'], client);
             if (testQuestion.length === 0) {
-                results.push({ question_id, error: "Question not part of the test." });
-                continue;
+                return { question_id, error: "Question not part of the test." };
             }
 
-            const question: any = await baseRepository.select(
-                "question",
-                { id: question_id },
-                ['id', 'type', 'total_marks', 'negative_marks'],
-                client
-            );
+            // Fetch question details
+            const question: any = await baseRepository.select("question", { id: question_id }, ['id', 'type', 'total_marks', 'negative_marks'], client);
             if (!question || question.length === 0) {
-                results.push({ question_id, error: "Question not found." });
-                continue;
+                return { question_id, error: "Question not found." };
             }
 
             const { type, total_marks, negative_marks } = question[0];
             let isCorrect = false;
 
             if (type === "radio" || type === "multiple_choice") {
-                const correctOptions: any = await baseRepository.select(
-                    "option",
-                    { question_id, is_correct: true },
-                    ['id'],
-                    client
-                );
+                const correctOptions: any = await baseRepository.select("option", { question_id, is_correct: true }, ['id'], client);
 
                 if (type === "radio") {
-                    if (correctOptions.length > 0 && correctOptions.some((opt: { id: number }) => opt.id === option_id)) {
-                        isCorrect = true;
-                    }
-
-                    const submissionData: any = {
-                        user_id: userDetails.id,
-                        test_id,
-                        question_id,
-                        option_id,
-                        is_correct: isCorrect,
-                        status: "answered",
-                        marks_awarded: isCorrect ? total_marks : 0,
-                        marks_deducted: isCorrect ? 0 : negative_marks
-                    };
-
-                    const existingSubmission: any = await baseRepository.select(
-                        "test_submissions",
-                        { user_id: userDetails.id, test_id, question_id },
-                        ['id'],
-                        client
-                    );
-
-                    if (existingSubmission.length > 0) {
-                        await baseRepository.update(
-                            "test_submissions",
-                            "user_id = $1 AND test_id = $2 AND question_id = $3",
-                            [userDetails.id, test_id, question_id],
-                            submissionData,
-                            client
-                        );
-                        results.push({ question_id, isCorrect, message: "Submission updated" });
-                    } else {
-                        await baseRepository.insert(
-                            "test_submissions",
-                            submissionData,
-                            {},
-                            client
-                        );
-                        results.push({ question_id, isCorrect, message: "New submission created" });
-                    }
-                }
-
-                if (type === "multiple_choice") {
+                    isCorrect = correctOptions.some((opt: { id: number }) => opt.id === option_id);
+                } else if (type === "multiple_choice") {
                     const selectedOptions: number[] = Array.isArray(option_id) ? option_id : [];
                     const correctOptionIds = correctOptions.map((opt: any) => opt.id);
-                    const perOptionMark = total_marks / correctOptionIds.length;
-
-                    let correctSelections = selectedOptions.filter((optId: number) => correctOptionIds.includes(optId));
-                    let incorrectSelections = selectedOptions.filter((optId: number) => !correctOptionIds.includes(optId));
-
-                    let optionMarksAwarded = correctSelections.length * perOptionMark;
-                    let optionMarksDeducted = incorrectSelections.length * negative_marks;
-
+                    const correctSelections = selectedOptions.filter((optId: number) => correctOptionIds.includes(optId));
+                    const incorrectSelections = selectedOptions.filter((optId: number) => !correctOptionIds.includes(optId));
                     isCorrect = correctSelections.length > 0 && incorrectSelections.length === 0;
-
-                    const existingSubmissions: any = await baseRepository.select(
-                        "test_submissions",
-                        { user_id: userDetails.id, test_id, question_id },
-                        ['id', 'option_id'],
-                        client
-                    );
-                    const existingOptionIds = existingSubmissions.map((s: any) => s.option_id);
-
-                    for (const optId of selectedOptions) {
-                        const isCorrectOption = correctOptionIds.includes(optId);
-                        const perOptAward = isCorrectOption ? perOptionMark : 0;
-                        const perOptDeduct = isCorrectOption ? 0 : negative_marks;
-
-                        if (!existingOptionIds.includes(optId)) {
-                            await baseRepository.insert("test_submissions", {
-                                user_id: userDetails.id,
-                                test_id,
-                                question_id,
-                                option_id: optId,
-                                is_correct: isCorrectOption,
-                                status: "answered",
-                                marks_awarded: perOptAward,
-                                marks_deducted: perOptDeduct
-                            }, {}, client);
-                        }
-                    }
-
-                    for (const existing of existingSubmissions) {
-                        if (!selectedOptions.includes(existing.option_id)) {
-                            await baseRepository.delete(
-                                "test_submissions",
-                                { id: existing.id },
-                                client
-                            );
-                        }
-                    }
-
-                    results.push({
-                        question_id,
-                        isCorrect,
-                        message: "Submitted multiple choice answer",
-                        optionMarksAwarded,
-                        optionMarksDeducted
-                    });
-
-                    continue;
                 }
-            }
-
-            else if (type === "blank" || type === "text") {
-                const questionDetails: any = await baseRepository.select(
-                    "question",
-                    { id: question_id },
-                    ['correct_answer'],
-                    client
-                );
-            
+            } else if (type === "blank" || type === "text") {
+                const questionDetails: any = await baseRepository.select("question", { id: question_id }, ['correct_answer'], client);
                 const correctAnswer = questionDetails?.[0]?.correct_answer || null;
-            
                 if (correctAnswer && correctAnswer.trim().toLowerCase() === text?.trim().toLowerCase()) {
                     isCorrect = true;
                 }
-
-                const submissionData: any = {
-                    user_id: userDetails.id,
-                    test_id,
-                    question_id,
-                    text,
-                    is_correct: isCorrect,
-                    status: "answered",
-                    marks_awarded: isCorrect ? total_marks : 0,
-                    marks_deducted: isCorrect ? 0 : negative_marks
-                };
-
-                const existingSubmission: any = await baseRepository.select(
-                    "test_submissions",
-                    { user_id: userDetails.id, test_id, question_id },
-                    ['id'],
-                    client
-                );
-
-                if (existingSubmission.length > 0) {
-                    await baseRepository.update(
-                        "test_submissions",
-                        "user_id = $1 AND test_id = $2 AND question_id = $3",
-                        [userDetails.id, test_id, question_id],
-                        submissionData,
-                        client
-                    );
-                    results.push({ question_id, isCorrect, message: "Submission updated" });
-                } else {
-                    await baseRepository.insert(
-                        "test_submissions",
-                        submissionData,
-                        {},
-                        client
-                    );
-                    results.push({ question_id, isCorrect, message: "New submission created" });
-                }
             }
-        }
 
-        const totalQuestions = await baseRepository.count("test_questions", { test_id }, client);
-        const submittedAnswers: any[] = await baseRepository.select(
-            "test_submissions",
-            { user_id: userDetails.id, test_id },
-            ['is_correct', 'marks_awarded', 'marks_deducted'],
-            client
-        );
+            // Update or insert submission
+            const submissionData = {
+                user_id,
+                test_id,
+                question_id,
+                option_id,
+                text,
+                is_correct: isCorrect,
+                status: "answered",
+                marks_awarded: isCorrect ? total_marks : 0,
+                marks_deducted: isCorrect ? 0 : negative_marks
+            };
 
-        const attempted = submittedAnswers.length;
-        let correct = submittedAnswers.filter(ans => ans.is_correct).length;
-        let wrong = attempted - correct;
+            const existingSubmission = await baseRepository.select("test_submissions", { user_id, test_id, question_id }, ['id'], client);
+            if (existingSubmission.length > 0) {
+                await baseRepository.update("test_submissions", "user_id = $1 AND test_id = $2 AND question_id = $3", [user_id, test_id, question_id], submissionData, client);
+                return { question_id, isCorrect, message: "Submission updated" };
+            } else {
+                await baseRepository.insert("test_submissions", submissionData, {}, client);
+                return { question_id, isCorrect, message: "New submission created" };
+            }
+        }));
 
-        let marks_awarded = submittedAnswers.reduce((sum, a) => sum + parseFloat(a.marks_awarded || 0), 0);
-        let marks_deducted = submittedAnswers.reduce((sum, a) => sum + parseFloat(a.marks_deducted || 0), 0);
+        console.log("Results:", results);
 
-        // if (attempted === totalQuestions) {
-        //     const finalScore = ((correct / totalQuestions) * 100).toFixed(2);
-        //     const finalResult = correct >= totalQuestions / 2 ? "Pass" : "Fail";
-
-        //     await baseRepository.upsert(
-        //         "test_results",
-        //         { user_id: userDetails.id, test_id },
-        //         {
-        //             total_questions: totalQuestions,
-        //             attempted,
-        //             correct,
-        //             wrong,
-        //             final_score: finalScore,
-        //             final_result: finalResult,
-        //             marks_awarded,
-        //             marks_deducted,
-        //             total_marks_awarded: marks_awarded - marks_deducted
-        //         } as any,
-        //         client
-        //     );
-
-        //     finalSummary = {
-        //         totalQuestions,
-        //         attempted,
-        //         correct,
-        //         wrong,
-        //         finalScore,
-        //         finalResult,
-        //         marks_awarded,
-        //         marks_deducted,
-        //         total_marks_awarded: marks_awarded - marks_deducted,
-        //         message: "Final submission completed"
-        //     };
-        // }
-
-        let pendingsubmission = await common.gettestStatus(test_id,user_id)
-        if(pendingsubmission && pendingsubmission.unanswered){
-
-        }
+        // Commit the transaction before fetching pending submissions
         await client.query("COMMIT");
+
+        // Fetch pending submissions after committing the transaction
+        const pendingsubmission = await common.gettestStatus(test_id, user_id);
+        console.log("Pending submission:", pendingsubmission);
 
         return res.status(200).json({
             message: "Questions submitted successfully",
             results,
             pendingsubmission
-           // finalSummary
         });
 
     } catch (err) {
         await client.query("ROLLBACK");
+        logger.error("Error in submitTest:", err);
         return res.status(500).json({ error: "Internal server error", details: err });
     } finally {
         client.release();
