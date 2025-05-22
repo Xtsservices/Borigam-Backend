@@ -354,7 +354,7 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
 
         // Process answers
         const results = await Promise.all(answers.map(async (answer: { question_id: number; option_id?: number | number[]; text?: string }) => {
-            const { question_id, option_id, text } = answer;
+            const { question_id, option_id } = answer;
 
             // Check if the question is part of the test
             const testQuestion = await baseRepository.select("test_questions", { test_id, question_id }, ['id'], client);
@@ -371,46 +371,106 @@ export const submitTest = async (req: Request, res: Response, next: NextFunction
             const { type, total_marks, negative_marks } = question[0];
             let isCorrect = false;
 
-            if (type === "radio" || type === "multiple_choice") {
-                const correctOptions: any = await baseRepository.select("option", { question_id, is_correct: true }, ['id'], client);
-
-                if (type === "radio") {
-                    isCorrect = correctOptions.some((opt: { id: number }) => opt.id === option_id);
-                } else if (type === "multiple_choice") {
-                    const selectedOptions: number[] = Array.isArray(option_id) ? option_id : [];
+            if (type === "multiple_choice") {
+                // For multiple-choice questions, process option_id as an array
+                if (Array.isArray(option_id) && option_id.length > 0) {
+                    const correctOptions: any = await baseRepository.select("option", { question_id, is_correct: true }, ['id'], client);
                     const correctOptionIds = correctOptions.map((opt: any) => opt.id);
-                    const correctSelections = selectedOptions.filter((optId: number) => correctOptionIds.includes(optId));
-                    const incorrectSelections = selectedOptions.filter((optId: number) => !correctOptionIds.includes(optId));
-                    isCorrect = correctSelections.length > 0 && incorrectSelections.length === 0;
+            
+                    // Validate submitted options
+                    const validOptions = option_id.filter((optId: number) => correctOptionIds.includes(optId));
+                    const invalidOptions = option_id.filter((optId: number) => !correctOptionIds.includes(optId));
+            
+                    if (invalidOptions.length > 0) {
+                        return { question_id, error: `Invalid option_id(s) for multiple-choice question: ${invalidOptions.join(", ")}` };
+                    }
+            
+                    // Remove all previous submissions for this question
+                    await baseRepository.delete("test_submissions", { user_id, test_id, question_id }, client);
+            
+                    // Insert each valid option as a separate submission
+                    const submissions = validOptions.map((optId: number) => ({
+                        user_id,
+                        test_id,
+                        question_id,
+                        option_id: optId,
+                        text: null,
+                        is_correct: true,
+                        status: "answered",
+                        marks_awarded: total_marks / correctOptionIds.length, // Divide marks equally among correct options
+                        marks_deducted: 0
+                    }));
+            
+                    await Promise.all(submissions.map(async (submission) => {
+                        await baseRepository.insert("test_submissions", submission, {}, client);
+                    }));
+            
+                    return {
+                        question_id,
+                        isCorrect: true,
+                        marks_awarded: total_marks,
+                        marks_deducted: 0,
+                        message: "Submission updated for multiple-choice question."
+                    };
+                } else {
+                    return { question_id, error: "Invalid option_id for multiple-choice question. At least one valid option must be submitted." };
+                }
+            } else if (type === "radio") {
+                // For single-choice questions, ensure option_id is a single integer
+                if (typeof option_id === "number") {
+                    const correctOptions: any = await baseRepository.select("option", { question_id, is_correct: true }, ['id'], client);
+                    isCorrect = correctOptions.some((opt: { id: number }) => opt.id === option_id);
+
+                    const submissionData = {
+                        user_id,
+                        test_id,
+                        question_id,
+                        option_id,
+                        text: null,
+                        is_correct: isCorrect,
+                        status: "answered",
+                        marks_awarded: isCorrect ? total_marks : 0,
+                        marks_deducted: isCorrect ? 0 : negative_marks
+                    };
+
+                    const existingSubmission = await baseRepository.select("test_submissions", { user_id, test_id, question_id }, ['id'], client);
+                    if (existingSubmission.length > 0) {
+                        await baseRepository.update("test_submissions", "user_id = $1 AND test_id = $2 AND question_id = $3", [user_id, test_id, question_id], submissionData, client);
+                    } else {
+                        await baseRepository.insert("test_submissions", submissionData, {}, client);
+                    }
+
+                    return { question_id, isCorrect, message: "Submission processed for single-choice question." };
+                } else {
+                    return { question_id, error: "Invalid option_id for single-choice question." };
                 }
             } else if (type === "blank" || type === "text") {
                 const questionDetails: any = await baseRepository.select("question", { id: question_id }, ['correct_answer'], client);
                 const correctAnswer = questionDetails?.[0]?.correct_answer || null;
-                if (correctAnswer && correctAnswer.trim().toLowerCase() === text?.trim().toLowerCase()) {
+                if (correctAnswer && correctAnswer.trim().toLowerCase() === answer.text?.trim().toLowerCase()) {
                     isCorrect = true;
                 }
-            }
 
-            // Update or insert submission
-            const submissionData = {
-                user_id,
-                test_id,
-                question_id,
-                option_id,
-                text,
-                is_correct: isCorrect,
-                status: "answered",
-                marks_awarded: isCorrect ? total_marks : 0,
-                marks_deducted: isCorrect ? 0 : negative_marks
-            };
+                const submissionData = {
+                    user_id,
+                    test_id,
+                    question_id,
+                    option_id: null,
+                    text: answer.text,
+                    is_correct: isCorrect,
+                    status: "answered",
+                    marks_awarded: isCorrect ? total_marks : 0,
+                    marks_deducted: isCorrect ? 0 : negative_marks
+                };
 
-            const existingSubmission = await baseRepository.select("test_submissions", { user_id, test_id, question_id }, ['id'], client);
-            if (existingSubmission.length > 0) {
-                await baseRepository.update("test_submissions", "user_id = $1 AND test_id = $2 AND question_id = $3", [user_id, test_id, question_id], submissionData, client);
-                return { question_id, isCorrect, message: "Submission updated" };
-            } else {
-                await baseRepository.insert("test_submissions", submissionData, {}, client);
-                return { question_id, isCorrect, message: "New submission created" };
+                const existingSubmission = await baseRepository.select("test_submissions", { user_id, test_id, question_id }, ['id'], client);
+                if (existingSubmission.length > 0) {
+                    await baseRepository.update("test_submissions", "user_id = $1 AND test_id = $2 AND question_id = $3", [user_id, test_id, question_id], submissionData, client);
+                } else {
+                    await baseRepository.insert("test_submissions", submissionData, {}, client);
+                }
+
+                return { question_id, isCorrect, message: "Submission processed for text/blank question." };
             }
         }));
 
@@ -517,7 +577,7 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
 
 
 export const submitFinalResult = async (req: Request, res: Response, next: NextFunction) => {
-    logger.info("Fetching test result by ID");
+    logger.info("Processing final test result submission");
 
     let { test_id, user_id } = req.query;
     const token = req.headers['token'];
@@ -530,24 +590,34 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
     if (!user_id) user_id = userDetails.id;
 
     try {
-
-
         const client = await baseRepository.getClient();
 
-        // Get all test questions and user answers along with marks awarded and deducted
+        // Query to fetch total marks_awarded and marks_deducted
+        const totalMarksQuery = `
+            SELECT 
+                COALESCE(SUM(ts.marks_awarded), 0) AS total_marks_awarded,
+                COALESCE(SUM(ts.marks_deducted), 0) AS total_marks_deducted
+            FROM test_submissions ts
+            WHERE ts.test_id = $1 AND ts.user_id = $2;
+        `;
+
+        const totalMarksResult = await client.query(totalMarksQuery, [test_id, user_id]);
+        const { total_marks_awarded, total_marks_deducted } = totalMarksResult.rows[0];
+
+        // Query to fetch all test questions and user submissions
         const answersQuery = `
             SELECT 
                 q.id AS question_id,
                 q.name AS question_text,
                 q.type AS question_type,
-                ts.marks_awarded,
-                ts.marks_deducted,
+                COALESCE(SUM(DISTINCT ts.marks_awarded), 0) AS marks_awarded, -- Sum DISTINCT marks_awarded for unique option_id
+                COALESCE(SUM(ts.marks_deducted), 0) AS marks_deducted, -- Sum marks_deducted for all rows with the same question_id
                 COALESCE(array_agg(DISTINCT ts.option_id) FILTER (
-                    WHERE ts.status = 'answered' AND ts.option_id IS NOT NULL
+                    WHERE ts.option_id IS NOT NULL
                 ), '{}') AS submitted_option_ids,
-                bool_or(ts.is_correct) FILTER (WHERE ts.status = 'answered') AS is_correct,
+                bool_or(ts.is_correct) AS is_correct, -- At least one correct option makes the question correct
                 CASE 
-                    WHEN COUNT(ts.id) FILTER (WHERE ts.status = 'answered') > 0 THEN 'answered'
+                    WHEN COUNT(ts.id) > 0 THEN 'answered'
                     ELSE 'unanswered'
                 END AS submission_status,
                 json_agg(
@@ -555,7 +625,7 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
                         'option_id', o.id,
                         'option_text', o.option_text,
                         'is_correct', o.is_correct
-                    ) ORDER BY o.id
+                    )
                 ) AS options
             FROM test_questions tq
             JOIN question q ON tq.question_id = q.id
@@ -565,7 +635,8 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
                 AND ts.test_id = $2
             LEFT JOIN option o ON o.question_id = q.id
             WHERE tq.test_id = $2
-            GROUP BY q.id, q.name, q.type, ts.marks_awarded, ts.marks_deducted
+            GROUP BY q.id, q.name, q.type
+            ORDER BY q.id;
         `;
 
         const answers: any = await baseRepository.query(answersQuery, [user_id, test_id]);
@@ -577,32 +648,27 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
         const correct = answers.filter((q: any) => q.submission_status === 'answered' && q.is_correct === true).length;
         const wrong = attempted - correct;
 
-        // Calculate marks
-        const marks_awarded = answers.reduce((sum: number, q: any) => sum + parseFloat(q.marks_awarded || 0), 0);
-        const marks_deducted = answers.reduce((sum: number, q: any) => sum + parseFloat(q.marks_deducted || 0), 0);
-
         const final_score = total_questions > 0 ? ((correct / total_questions) * 100).toFixed(2) : '0.00';
         const final_result = correct >= total_questions / 2 ? "Pass" : "Fail";
 
         // Insert or Update result in the database
         const insertQuery = `
-        INSERT INTO test_results 
-        (user_id, test_id, total_questions, attempted, unattempted, correct, wrong, final_score, final_result, marks_awarded, marks_deducted, created_at)
-        VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-        ON CONFLICT (user_id, test_id) 
-        DO UPDATE SET 
-            total_questions = EXCLUDED.total_questions,
-            attempted = EXCLUDED.attempted,
-            unattempted = EXCLUDED.unattempted,
-            correct = EXCLUDED.correct,
-            wrong = EXCLUDED.wrong,
-            final_score = EXCLUDED.final_score,
-            final_result = EXCLUDED.final_result,
-            marks_awarded = EXCLUDED.marks_awarded,
-            marks_deducted = EXCLUDED.marks_deducted;
-    `;
-    
+            INSERT INTO test_results 
+            (user_id, test_id, total_questions, attempted, unattempted, correct, wrong, final_score, final_result, marks_awarded, marks_deducted, created_at)
+            VALUES 
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+            ON CONFLICT (user_id, test_id) 
+            DO UPDATE SET 
+                total_questions = EXCLUDED.total_questions,
+                attempted = EXCLUDED.attempted,
+                unattempted = EXCLUDED.unattempted,
+                correct = EXCLUDED.correct,
+                wrong = EXCLUDED.wrong,
+                final_score = EXCLUDED.final_score,
+                final_result = EXCLUDED.final_result,
+                marks_awarded = EXCLUDED.marks_awarded,
+                marks_deducted = EXCLUDED.marks_deducted;
+        `;
 
         await client.query(insertQuery, [
             user_id,
@@ -614,8 +680,8 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
             wrong,
             final_score,
             final_result,
-            marks_awarded,
-            marks_deducted
+            total_marks_awarded,
+            total_marks_deducted
         ]);
 
         await client.release();
@@ -630,14 +696,14 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
                 wrong,
                 final_score,
                 final_result,
-                marks_awarded,
-                marks_deducted,
-                total_marks_awarded: marks_awarded - marks_deducted
+                marks_awarded: total_marks_awarded,
+                marks_deducted: total_marks_deducted,
+                total_marks_awarded: total_marks_awarded - total_marks_deducted
             },
             answers
         });
     } catch (err) {
-        logger.error("Error fetching test result:", err);
+        logger.error("Error processing final test result:", err);
         return res.status(500).json({ error: "Internal server error", details: err });
     }
 };
