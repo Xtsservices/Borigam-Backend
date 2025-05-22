@@ -49,13 +49,13 @@ class common {
     async gettestStatus(test_id: number, user_id: number) {
         try {
             const query = `
-                SELECT 
-                    COUNT(CASE WHEN status = 'open' THEN 1 END) AS total_open,
-                    COUNT(CASE WHEN status = 'answered' THEN 1 END) AS total_answered,
-                    COUNT(CASE WHEN status = 'unanswered' THEN 1 END) AS total_unanswered
-                FROM test_submissions
-                WHERE test_id = $1 AND user_id = $2;
-            `;
+            SELECT 
+                COUNT(DISTINCT CASE WHEN status = 'open' THEN question_id END) AS total_open,
+                COUNT(DISTINCT CASE WHEN status = 'answered' THEN question_id END) AS total_answered,
+                COUNT(DISTINCT CASE WHEN status = 'unanswered' THEN question_id END) AS total_unanswered
+            FROM test_submissions
+            WHERE test_id = $1 AND user_id = $2;
+        `;
 
             const result: any = await baseRepository.query(query, [test_id, user_id]);
 
