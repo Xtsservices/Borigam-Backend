@@ -9,18 +9,20 @@ export const upload = multer({
         bucket: process.env.AWS_S3_BUCKET_NAME!,
         contentType: multerS3.AUTO_CONTENT_TYPE,
         key: (req, file, cb) => {
-            console.log(file.originalname)
             const ext = path.extname(file.originalname);
-            cb(null, `questions/${Date.now()}-${file.originalname}`);
+            const fileName = path.basename(file.originalname, ext);
+            cb(null, `questions/${Date.now()}-${fileName}${ext}`); // Unique file path
         },
     }),
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith("image/")) {
-            cb(null, true);
+            cb(null, true); // Accept image files
         } else {
-            cb(null, false); // Reject non-image
+            cb(null, false); // Reject non-image files
         }
     },
-
+    limits: {
+        fileSize: 5 * 1024 * 1024, // Limit file size to 5MB
+    },
 });
 
