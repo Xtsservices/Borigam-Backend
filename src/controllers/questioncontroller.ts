@@ -23,8 +23,7 @@ interface MulterS3File extends Express.Multer.File {
 export const createQuestion = async (req: Request, res: Response, next: NextFunction) => {
     logger.info("Entered Into Create Question");
 
-    console.log("Request Body:", req.body);
-    console.log("Request Files:", req.files);
+   
 
     const client: PoolClient = await baseRepository.getClient();
 
