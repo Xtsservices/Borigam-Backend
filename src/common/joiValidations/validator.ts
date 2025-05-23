@@ -184,28 +184,29 @@ const subjectSchema = Joi.object({
 
 
 export const questionWithOptionsSchema = Joi.object({
-  name: Joi.string().required(),
-  type: Joi.string().valid("radio", "blank", "multiple_choice","text").required(),
-  course_id: Joi.number().required(),
-  total_marks: Joi.number().positive().required(),
-  negative_marks: Joi.number().min(0).required(),
+    name: Joi.string().required(),
+    type: Joi.string().valid("radio", "blank", "multiple_choice", "text").required(),
+    course_id: Joi.number().required(),
+    total_marks: Joi.number().positive().required(),
+    negative_marks: Joi.number().min(0).required(),
 
-  correct_answer: Joi.alternatives().conditional("type", {
-    is: "text",
-    then: Joi.string().trim().required(),
-    otherwise: Joi.forbidden(),
-  }),
+    correct_answer: Joi.alternatives().conditional("type", {
+        is: "text",
+        then: Joi.string().trim().required(),
+        otherwise: Joi.forbidden(),
+    }),
 
-  options: Joi.alternatives().conditional("type", {
-    is: "text",
-    then: Joi.array().max(0).required(), // no options for text questions
-    otherwise: Joi.array().items(
-      Joi.object({
-        option_text: Joi.string().required(),
-        is_correct: Joi.boolean().required(),
-      })
-    ).min(1).required(),
-  }),
+    options: Joi.alternatives().conditional("type", {
+        is: "text",
+        // no options for text questions
+            otherwise: Joi.array().items(
+                Joi.object({
+                option_text: Joi.string().required(),
+                is_correct: Joi.boolean().required(),
+                })
+            ).min(1).required(),
+            }),
+            optionImages: Joi.any() // Changed to allow any value
 });
 
 

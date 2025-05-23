@@ -8,7 +8,7 @@ const router = express.Router();
 const asyncHandler = (fn: any) => (req: any, res: any, next: any) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-router.post('/createQuestion',  asyncHandler(validateToken),  upload.fields([{ name: 'image', maxCount: 1 },  { name: 'optionImages', maxCount: 10 },]), asyncHandler(createQuestion));
+router.post('/createQuestion',  asyncHandler(validateToken),  upload.fields([{ name: 'image', maxCount: 1 },  { name: 'optionImages', maxCount: 10 },{ name: 'imageOption1', maxCount: 1 },{ name: 'imageOption2', maxCount: 1 },{ name: 'imageOption3', maxCount: 1 },{ name: 'imageOption4', maxCount: 1 },]), asyncHandler(createQuestion));
 router.get('/getAllQuestions', asyncHandler(validateToken), asyncHandler(getAllQuestions));
 router.get('/getQuestionsByCourseId', asyncHandler(validateToken), asyncHandler(getQuestionsByCourseId));
 

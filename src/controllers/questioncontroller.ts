@@ -21,119 +21,133 @@ interface MulterS3File extends Express.Multer.File {
 }
 
 export const createQuestion = async (req: Request, res: Response, next: NextFunction) => {
-  logger.info("Entered Into Create Question");
+    logger.info("Entered Into Create Question");
 
-  const client: PoolClient = await baseRepository.getClient();
+   
 
-  try {
-    await client.query("BEGIN");
+    const client: PoolClient = await baseRepository.getClient();
 
-    // Normalize options from string to array if needed
-    let noptions: any = req.body.options;
-    if (typeof noptions === "string") {
-      try {
-        noptions = JSON.parse(noptions);
-        req.body.options = noptions;
-      } catch (e) {
-        return res.status(400).json({ error: "Invalid options JSON format" });
-      }
+    try {
+        await client.query("BEGIN");
+
+        // Normalize options from string to array if needed
+        let noptions: any = req.body.options;
+        if (typeof noptions === "string") {
+            try {
+                noptions = JSON.parse(noptions);
+                req.body.options = noptions;
+            } catch (e) {
+                return res.status(400).json({ error: "Invalid options JSON format" });
+            }
+        }
+
+        // Validate input
+        const { error } = joiSchema.questionWithOptionsSchema.validate(req.body);
+        if (error) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: error.details[0].message });
+        }
+
+        const {
+            name,
+            type,
+            course_id,
+            options,
+            total_marks,
+            negative_marks,
+            correct_answer
+        } = req.body;
+
+        const status = getStatus("active");
+
+        // Marks validation
+        if (negative_marks >= total_marks) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                error: "Negative marks cannot be greater than total marks",
+            });
+        }
+        if (total_marks <= 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                error: "Total marks must be greater than 0",
+            });
+        }
+        if (negative_marks < 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                error: "Negative marks must be 0 or greater",
+            });
+        }
+
+        // File uploads
+        let questionImage;
+        const optionImages: { [key: string]: string } = {};
+        if (req.files) {
+            const files = req.files as { [fieldname: string]: Express.MulterS3.File[] };
+            questionImage = files["image"]?.[0]?.location || null;
+
+            // Dynamically map option images
+            Object.keys(files).forEach((key) => {
+                if (key.startsWith("imageOption")) {
+                    optionImages[key] = files[key][0]?.location || '';
+                }
+            });
+        }
+
+        // Check if course exists
+        const courseData: any = await baseRepository.select("course", { id: course_id }, ["id"]);
+        if (!courseData || courseData.length === 0) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Course not found" });
+        }
+
+        // Insert question
+        const newQuestion: any = await baseRepository.insert(
+            "question",
+            {
+                name,
+                type,
+                status,
+                course_id,
+                image: questionImage,
+                total_marks,
+                negative_marks,
+                correct_answer: type === "text" ? correct_answer : null,
+            },
+            questionSchema,
+            client
+        );
+
+        // Insert options for non-text questions
+        if (type !== "text" && options && options.length > 0) {
+            const optionsData = options.map((opt: any, index: number) => {
+                const imageKey = `imageOption${index + 1}`; // Match imageOption1, imageOption2, etc.
+                return {
+                    question_id: newQuestion.id,
+                    option_text: opt.option_text,
+                    is_correct: typeof opt.is_correct === "boolean" ? opt.is_correct : false,
+                    image: optionImages[imageKey] || null, // Assign the corresponding image
+                };
+            });
+
+            await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
+        }
+
+        await client.query("COMMIT");
+        logger.info("Question created successfully");
+        return res.status(200).json({
+            message: "Question created successfully",
+            data: newQuestion,
+        });
+
+    } catch (err) {
+        await client.query("ROLLBACK");
+        logger.error("Error creating question:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    } finally {
+        client.release();
     }
-
-    // Validate input
-    const { error } = joiSchema.questionWithOptionsSchema.validate(req.body);
-    if (error) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: error.details[0].message });
-    }
-
-    const {
-      name,
-      type,
-      course_id,
-      options,
-      total_marks,
-      negative_marks,
-      correct_answer
-    } = req.body;
-
-    const status = getStatus("active");
-
-    // Marks validation
-    if (negative_marks >= total_marks) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Negative marks cannot be greater than total marks",
-      });
-    }
-    if (total_marks <= 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Total marks must be greater than 0",
-      });
-    }
-    if (negative_marks < 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        error: "Negative marks must be 0 or greater",
-      });
-    }
-
-    // File uploads
-    let questionImage;
-    let optionImages: any[] = [];
-    if (req.files) {
-      const files = req.files as { [fieldname: string]: MulterS3File[] };
-      questionImage = files["image"]?.[0]?.location || null;
-      optionImages = files["optionImages"] || [];
-    }
-
-    // Check if course exists
-    const courseData: any = await baseRepository.select("course", { id: course_id }, ["id"]);
-    if (!courseData || courseData.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Course not found" });
-    }
-
-    // Insert question
-    const newQuestion: any = await baseRepository.insert(
-      "question",
-      {
-        name,
-        type,
-        status,
-        course_id,
-        image: questionImage,
-        total_marks,
-        negative_marks,
-        correct_answer: type === "text" ? correct_answer : null,
-      },
-      questionSchema,
-      client
-    );
-
-    // Insert options for non-text questions
-    if (type !== "text" && options && options.length > 0) {
-      const optionsData = options.map((opt: any, index: number) => ({
-        question_id: newQuestion.id,
-        option_text: opt.option_text,
-        is_correct: typeof opt.is_correct === "boolean" ? opt.is_correct : false,
-        image: optionImages[index]?.location || null,
-      }));
-
-      await baseRepository.insertMultiple("option", optionsData, optionSchema, client);
-    }
-
-    await client.query("COMMIT");
-    logger.info("Question created successfully");
-    return ResponseMessages.Response(res, responseMessage.success, newQuestion);
-
-  } catch (err) {
-    await client.query("ROLLBACK");
-    logger.error("Error creating question:", err);
-    return ResponseMessages.ErrorHandlerMethod(res, responseMessage.internal_server_error, err);
-  } finally {
-    client.release();
-  }
 };
 
 
