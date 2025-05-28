@@ -75,8 +75,62 @@ const createUsersTable = async () => {
       );
     `);
 
+   
 
 
+    const addExplanationColumn = async () => {
+      try {
+        const columnCheckQuery = `
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'question' AND column_name = 'explanation';
+        `;
+    
+        const result = await pool.query(columnCheckQuery);
+    
+        if (result.rowCount === 0) {
+          await pool.query(`
+            ALTER TABLE question
+            ADD COLUMN explanation TEXT;
+          `);
+          console.log("✅ Added 'explanation' column to 'question' table.");
+        } else {
+          console.log("Column 'explanation' already exists in 'question' table.");
+        }
+      } catch (error) {
+        console.error("Error adding 'explanation' column to 'question' table:", error);
+      }
+    };
+    
+    // Call the function to ensure the column is added
+    addExplanationColumn();
+
+    const changeColumnTypeToText = async () => {
+      try {
+        const columnCheckQuery = `
+          SELECT column_name, data_type
+          FROM information_schema.columns
+          WHERE table_name = 'question' AND column_name = 'name';
+        `;
+    
+        const result:any = await pool.query(columnCheckQuery);
+    
+        if (result.rowCount > 0 && result.rows[0].data_type !== 'text') {
+          await pool.query(`
+            ALTER TABLE question
+            ALTER COLUMN name TYPE TEXT;
+          `);
+          console.log("✅ Changed 'name' column type to TEXT in 'question' table.");
+        } else {
+          console.log("Column 'name' is already of type TEXT or does not exist.");
+        }
+      } catch (error) {
+        console.error("Error changing column type to TEXT:", error);
+      }
+    };
+    
+    // Call the function to ensure the column type is updated
+    changeColumnTypeToText();
     
 
     // Check if column "course_id" exists in "question" table

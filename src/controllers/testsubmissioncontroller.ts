@@ -533,6 +533,7 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
             SELECT 
                 q.id AS question_id,
                 q.name AS question_text,
+                q.explanation AS question_explanation,
                 q.type AS question_type,
                 COALESCE(array_agg(DISTINCT ts.option_id) FILTER (
                     WHERE ts.status = 'answered' AND ts.option_id IS NOT NULL

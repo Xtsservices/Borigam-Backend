@@ -189,6 +189,8 @@ export const questionWithOptionsSchema = Joi.object({
     course_id: Joi.number().required(),
     total_marks: Joi.number().positive().required(),
     negative_marks: Joi.number().min(0).required(),
+    explanation: Joi.string().required(),
+
 
     correct_answer: Joi.alternatives().conditional("type", {
         is: "text",
