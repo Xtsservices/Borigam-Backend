@@ -386,7 +386,13 @@ export const permissionSchema = Joi.object({
     update_permission: Joi.boolean().required(),
     delete_permission: Joi.boolean().required(),
   });
-
+  export const   announcementSchema= Joi.object({
+    start_date: Joi.string().required(),
+    end_date: Joi.string().required(),
+    text: Joi.string().required()
+   
+});
+  
 
 
 export const joiSchema = {
@@ -406,7 +412,8 @@ export const joiSchema = {
     updateBatchSchema,
     moduleSchema,
     permissionSchema,
-    updatestudentSchema
+    updatestudentSchema,
+    announcementSchema
 
     
    

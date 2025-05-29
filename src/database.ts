@@ -275,6 +275,19 @@ const createUsersTable = async () => {
         created_at BIGINT NOT NULL
       );
     `);
+       await pool.query(`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id SERIAL PRIMARY KEY,
+      start_date BIGINT NOT NULL,
+      end_date BIGINT NOT NULL,
+      text TEXT NOT NULL,
+      created_date BIGINT ,
+      updated_date BIGINT ,
+      status SMALLINT NOT NULL,
+      created_by_id INT NOT NULL,
+      updated_by_id INT
+  );
+  `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS test_questions (

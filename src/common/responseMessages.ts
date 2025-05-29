@@ -6,6 +6,15 @@ import { serverResponseCodes } from '../utils/serverResponses';
 //response message  class
 
 export class ResponseMessages {
+    static noDataFound(res: Response<any, Record<string, any>>, arg1: string) {
+        throw new Error("Method not implemented.");
+    }
+    static ErrorHandlerMethod(res: Response<any, Record<string, any>>, arg1: string, err: unknown) {
+        throw new Error("Method not implemented.");
+    }
+    static Response(res: Response<any, Record<string, any>>, success: string, newRole: any) {
+        throw new Error("Method not implemented.");
+    }
     async noDataFound(res: Response, message: string) {
         logger.info(message)
         return res.status(serverResponseCodes.NoData).json({
