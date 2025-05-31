@@ -55,6 +55,7 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
             options,
             total_marks,
             negative_marks,
+            explanation,
             correct_answer
         } = req.body;
 
@@ -113,6 +114,7 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
                 image: questionImage,
                 total_marks,
                 negative_marks,
+                explanation,
                 correct_answer: type === "text" ? correct_answer : null,
             },
             questionSchema,
@@ -217,6 +219,7 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
                 q.image,
                 q.total_marks,
                 q.negative_marks,
+                q.explanation,
                 c.id AS course_id, 
                 c.name AS course_name, 
                 o.id AS option_id, 
@@ -254,6 +257,7 @@ export const getAllQuestions = async (req: Request, res: Response, next: NextFun
           image: item.image,
           total_marks: item.total_marks,
           negative_marks: item.negative_marks,
+          explanation: item.explanation,
           options: []
         };
         acc.push(question);

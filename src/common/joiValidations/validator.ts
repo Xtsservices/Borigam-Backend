@@ -189,6 +189,8 @@ export const questionWithOptionsSchema = Joi.object({
     course_id: Joi.number().required(),
     total_marks: Joi.number().positive().required(),
     negative_marks: Joi.number().min(0).required(),
+    explanation: Joi.string().required(),
+
 
     correct_answer: Joi.alternatives().conditional("type", {
         is: "text",
@@ -384,7 +386,13 @@ export const permissionSchema = Joi.object({
     update_permission: Joi.boolean().required(),
     delete_permission: Joi.boolean().required(),
   });
-
+  export const   announcementSchema= Joi.object({
+    start_date: Joi.string().required(),
+    end_date: Joi.string().required(),
+    text: Joi.string().required()
+   
+});
+  
 
 
 export const joiSchema = {
@@ -404,7 +412,8 @@ export const joiSchema = {
     updateBatchSchema,
     moduleSchema,
     permissionSchema,
-    updatestudentSchema
+    updatestudentSchema,
+    announcementSchema
 
     
    

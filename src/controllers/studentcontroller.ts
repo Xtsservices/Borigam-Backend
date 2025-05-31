@@ -680,10 +680,17 @@ export const getAllTestResultsForAllTests = async (req: Request, res: Response, 
                 tr.final_score,
                 tr.final_result,
                 tr.marks_awarded,
-                tr.marks_deducted
+                tr.marks_deducted,
+                c.id AS course_id,
+                c.name AS course_name,
+                b.id AS batch_id,
+                b.name AS batch_name
             FROM test_results tr
             INNER JOIN users u ON u.id = tr.user_id
             INNER JOIN test t ON t.id = tr.test_id
+            LEFT JOIN course_students cs ON cs.student_id = u.id
+            LEFT JOIN course c ON c.id = cs.course_id
+            LEFT JOIN batch b ON b.id = cs.batch_id
         `;
 
         const params: any[] = [];

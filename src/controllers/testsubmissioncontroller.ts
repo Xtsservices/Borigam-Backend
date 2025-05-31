@@ -533,6 +533,7 @@ export const getTestResultById = async (req: Request, res: Response, next: NextF
             SELECT 
                 q.id AS question_id,
                 q.name AS question_text,
+                q.explanation AS question_explanation,
                 q.type AS question_type,
                 COALESCE(array_agg(DISTINCT ts.option_id) FILTER (
                     WHERE ts.status = 'answered' AND ts.option_id IS NOT NULL
@@ -704,6 +705,63 @@ export const submitFinalResult = async (req: Request, res: Response, next: NextF
         });
     } catch (err) {
         logger.error("Error processing final test result:", err);
+        return res.status(500).json({ error: "Internal server error", details: err });
+    }
+};
+export const getTestQuestionsWithSubmissions = async (req: Request, res: Response, next: NextFunction) => {
+    logger.info("Fetching test questions with submissions");
+
+    const { test_id } = req.query; // Assuming test_id is passed as a query parameter
+    const token = req.headers['token'];
+    const userDetails = await getdetailsfromtoken(token);
+
+    if (!test_id) {
+        return res.status(400).json({ error: "Test ID is required" });
+    }
+
+    try {
+        // Query to fetch questions, options, submitted options, status, and start_time
+        const query = `
+            SELECT 
+                q.id AS question_id,
+                q.name AS question_name,
+                json_agg(
+                    DISTINCT jsonb_build_object(
+                        'option_id', o.id,
+                        'option_text', o.option_text
+                    )
+                ) AS options,
+                COALESCE(array_agg(DISTINCT ts.option_id) FILTER (WHERE ts.status = 'answered'), '{}') AS submitted_options,
+                MAX(ts.status) AS status, -- Fetch the latest status for the question
+                tr.start_time -- Fetch the start time from test_results
+            FROM test_questions tq
+            JOIN question q ON tq.question_id = q.id
+            LEFT JOIN option o ON o.question_id = q.id
+            LEFT JOIN test_submissions ts 
+                ON ts.question_id = q.id 
+                AND ts.user_id = $1 
+                AND ts.test_id = $2
+            LEFT JOIN test_results tr 
+                ON tr.test_id = $2 
+                AND tr.user_id = $1
+            WHERE tq.test_id = $2
+            GROUP BY q.id, q.name, tr.start_time
+            ORDER BY q.id;
+        `;
+
+        const result: { question_id: number; question_name: string; options: any[]; submitted_options: number[]; status: string; start_time: Date | null }[] = await baseRepository.query(query, [userDetails.id, test_id]);
+
+        if (result.length === 0) {
+            return res.status(404).json({ error: "No questions found for this test." });
+        }
+
+        return res.status(200).json({
+            message: "Test questions with submissions fetched successfully",
+            start_time: result[0]?.start_time || null, // Include start_time in the response
+            questions: result
+        });
+    } catch (err) {
+        logger.error("Error fetching test questions with submissions:", err);
         return res.status(500).json({ error: "Internal server error", details: err });
     }
 };
