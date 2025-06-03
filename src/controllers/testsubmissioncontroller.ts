@@ -723,27 +723,28 @@ export const getTestQuestionsWithSubmissions = async (req: Request, res: Respons
         // Query to fetch questions, options, submitted options, status, and start_time
         const query = `
             SELECT 
-                q.id AS question_id,
-                q.name AS question_name,
-                json_agg(
-                    DISTINCT jsonb_build_object(
-                        'option_id', o.id,
-                        'option_text', o.option_text
-                    )
-                ) AS options,
-                COALESCE(array_agg(DISTINCT ts.option_id) FILTER (WHERE ts.status = 'answered'), '{}') AS submitted_options,
-                MAX(ts.status) AS status, -- Fetch the latest status for the question
-                tr.start_time -- Fetch the start time from test_results
+            q.id AS question_id,
+            q.name AS question_name,
+            json_agg(
+                DISTINCT jsonb_build_object(
+                'option_id', o.id,
+                'option_text', o.option_text
+                )
+            ) AS options,
+            COALESCE(array_agg(DISTINCT ts.option_id) FILTER (WHERE ts.status = 'answered'), '{}') AS submitted_options,
+            MAX(ts.status) AS status, -- Fetch the latest status for the question
+            MAX(ts.text) AS submitted_text, -- Include the text column from test submissions
+            tr.start_time -- Fetch the start time from test_results
             FROM test_questions tq
             JOIN question q ON tq.question_id = q.id
             LEFT JOIN option o ON o.question_id = q.id
             LEFT JOIN test_submissions ts 
-                ON ts.question_id = q.id 
-                AND ts.user_id = $1 
-                AND ts.test_id = $2
+            ON ts.question_id = q.id 
+            AND ts.user_id = $1 
+            AND ts.test_id = $2
             LEFT JOIN test_results tr 
-                ON tr.test_id = $2 
-                AND tr.user_id = $1
+            ON tr.test_id = $2 
+            AND tr.user_id = $1
             WHERE tq.test_id = $2
             GROUP BY q.id, q.name, tr.start_time
             ORDER BY q.id;

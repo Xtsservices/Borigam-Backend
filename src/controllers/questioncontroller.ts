@@ -345,7 +345,7 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
           status: getStatus(item.status),
           course_id: item.course_id,
           course_name: item.course_name,
-          image: item.image,
+          image: item.question_image,
           total_marks: item.total_marks,
           negative_marks: item.negative_marks,
           options: []
