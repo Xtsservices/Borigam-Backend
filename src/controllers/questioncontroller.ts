@@ -308,7 +308,7 @@ export const getQuestionsByCourseId = async (req: Request, res: Response, next: 
           q.name, 
           q.type, 
           q.status, 
-          q.image,
+          q.image AS question_image,
           q.total_marks,
           q.negative_marks,
           c.id AS course_id, 
